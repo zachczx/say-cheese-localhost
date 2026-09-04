@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Say Cheese Localhost",
+  "description": "Capture curated localhost routes at deterministic viewport sizes.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "permissions": ["debugger", "downloads", "storage"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Say Cheese Localhost"
+  }
+}

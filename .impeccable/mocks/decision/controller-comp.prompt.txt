@@ -1,0 +1,6 @@
+Use case: ui-mockup
+Asset type: desktop Chrome extension controller reference composition for implementation
+Primary request: A high-fidelity 1440x1000 desktop interface for a locally installed Chrome extension named "Say Cheese Localhost" that controls ordered screenshots of localhost routes.
+Direction: warm-light native developer tool with disciplined calibration-bench precision, a left configuration rail, a dominant ordered shot queue, explicit progress and errors, and one unmistakable capture action.
+Palette: warm off-white, charcoal, putty, restrained amber for activity, green for completion, and red for failure.
+Avoid: generic dashboard cards, hero sections, literal camera illustration, gradients, glass, neon, dark theme, faux hardware, and excessive pills.

@@ -1,0 +1,131 @@
+{
+  "id": "cubby",
+  "label": "Cubby",
+  "defaultBaseUrl": "http://localhost:5173",
+  "outputDirectory": "say-cheese-localhost/cubby",
+  "defaultViewport": "phone",
+  "shots": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "path": "/app",
+      "filename": "dashboard.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "shelf",
+      "label": "The Shelf",
+      "path": "/app",
+      "filename": "shelf.webp",
+      "enabledByDefault": true,
+      "settleMs": 2000
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "path": "/app/tasks",
+      "filename": "tasks.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "limits",
+      "label": "Limits",
+      "path": "/app/limits",
+      "filename": "limits.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "screentimer",
+      "label": "Screen Timer",
+      "path": "/app/screentimer",
+      "filename": "screentimer.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "enrichment",
+      "label": "Enrichment",
+      "path": "/app/enrichment",
+      "filename": "enrichment.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "gym-workout",
+      "label": "Gym workout",
+      "path": "/app/gym",
+      "filename": "gym-workout.webp",
+      "enabledByDefault": true,
+      "settleMs": 2500
+    },
+    {
+      "id": "gym-exercise",
+      "label": "Gym exercise",
+      "path": "/app/gym/stats/exercises",
+      "filename": "gym-exercise.webp",
+      "enabledByDefault": true,
+      "settleMs": 3500
+    },
+    {
+      "id": "illness",
+      "label": "Illness",
+      "path": "/app/illness",
+      "filename": "illness.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "coffee",
+      "label": "Coffee",
+      "path": "/app/coffee",
+      "filename": "coffee.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "meals",
+      "label": "Meals",
+      "path": "/app/meals",
+      "filename": "meals.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "expiry",
+      "label": "Expiry",
+      "path": "/app/expiry",
+      "filename": "expiry.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "market",
+      "label": "Market",
+      "path": "/app/market",
+      "filename": "market.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "finance",
+      "label": "Finance",
+      "path": "/app/finance",
+      "filename": "finance.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "travel",
+      "label": "Travel",
+      "path": "/app/travel",
+      "filename": "travel.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "growing-up",
+      "label": "Growing Up",
+      "path": "/app/growing-up",
+      "filename": "growing-up.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "journal-recap",
+      "label": "Journal recap",
+      "path": "/app/journal/recap",
+      "filename": "journal-recap.webp",
+      "enabledByDefault": true
+    }
+  ]
+}
