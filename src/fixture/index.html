@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-capture-ready="true">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Say Cheese Localhost fixture</title>
+    <style>
+      :root {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        color: #24231f;
+        background: #f3efe4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 150vh;
+      }
+      main {
+        width: min(100% - 40px, 740px);
+        margin: 0 auto;
+        padding: 56px 0 120px;
+      }
+      header {
+        padding-bottom: 40px;
+        border-bottom: 1px solid #cfc7b8;
+      }
+      h1 {
+        max-width: 8ch;
+        margin: 0;
+        font-size: clamp(42px, 10vw, 84px);
+        line-height: 0.92;
+        letter-spacing: -0.04em;
+      }
+      p {
+        max-width: 58ch;
+        color: #625e56;
+        line-height: 1.65;
+      }
+      .mark {
+        display: inline-block;
+        margin-bottom: 34px;
+        padding: 8px 11px;
+        color: #fff;
+        background: #24231f;
+        border-radius: 8px;
+        font-weight: 700;
+      }
+      #details {
+        display: grid;
+        gap: 16px;
+        padding-top: 72px;
+      }
+      article {
+        padding: 22px;
+        background: #fffdf8;
+        border: 1px solid #d7d0c3;
+        border-radius: 14px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="mark">Local fixture</span>
+        <h1>Ready for capture.</h1>
+        <p>
+          This harmless page verifies viewport emulation, deterministic preparation, route actions,
+          and WebP output without connecting to an application repository.
+        </p>
+      </header>
+      <section id="details" aria-labelledby="details-title">
+        <article>
+          <h2 id="details-title">Stable route</h2>
+          <p>
+            The page marks its capture-ready state explicitly and contains enough vertical content
+            to verify scripted scrolling.
+          </p>
+        </article>
+        <article>
+          <h2>Singapore timezone</h2>
+          <p id="timezone"></p>
+        </article>
+      </section>
+    </main>
+    <script type="module">
+      const details = new URLSearchParams(location.search).get('state') === 'details';
+      document.documentElement.dataset.state = details ? 'details' : 'overview';
+      document.querySelector('#timezone').textContent = new Intl.DateTimeFormat('en-SG', {
+        dateStyle: 'full',
+        timeStyle: 'long',
+        timeZone: 'Asia/Singapore',
+      }).format(new Date('2026-09-04T04:00:00Z'));
+    </script>
+  </body>
+</html>

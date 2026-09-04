@@ -1,0 +1,123 @@
+{
+  "id": "cubby",
+  "label": "Cubby",
+  "defaultBaseUrl": "http://127.0.0.1:5174",
+  "outputDirectory": "say-cheese-localhost/cubby",
+  "defaultViewport": "phone",
+  "shots": [
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "path": "/app",
+      "filename": "cubby-01-dashboard.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "path": "/app/tasks",
+      "filename": "cubby-02-tasks.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "limits",
+      "label": "Limits",
+      "path": "/app/limits",
+      "filename": "cubby-03-limits.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "screentimer",
+      "label": "Screen Timer",
+      "path": "/app/screentimer",
+      "filename": "cubby-04-screentimer.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "enrichment",
+      "label": "Enrichment",
+      "path": "/app/enrichment",
+      "filename": "cubby-05-enrichment.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "gym-workout",
+      "label": "Gym workout",
+      "path": "/app/gym",
+      "filename": "cubby-06-gym-workout.webp",
+      "enabledByDefault": true,
+      "preparation": "Open the workout you want to show, then adjust the scroll position."
+    },
+    {
+      "id": "gym-exercise",
+      "label": "Gym exercise",
+      "path": "/app/gym/stats/exercises",
+      "filename": "cubby-07-gym-exercise.webp",
+      "enabledByDefault": true,
+      "preparation": "Open an exercise and frame its history before capturing."
+    },
+    {
+      "id": "illness",
+      "label": "Illness",
+      "path": "/app/illness",
+      "filename": "cubby-08-illness.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "coffee",
+      "label": "Coffee",
+      "path": "/app/coffee",
+      "filename": "cubby-09-coffee.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "meals",
+      "label": "Meals",
+      "path": "/app/meals",
+      "filename": "cubby-10-meals.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "expiry",
+      "label": "Expiry",
+      "path": "/app/expiry",
+      "filename": "cubby-11-expiry.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "market",
+      "label": "Market",
+      "path": "/app/market",
+      "filename": "cubby-12-market.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "finance",
+      "label": "Finance",
+      "path": "/app/finance",
+      "filename": "cubby-13-finance.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "travel",
+      "label": "Travel",
+      "path": "/app/travel",
+      "filename": "cubby-14-travel.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "growing-up",
+      "label": "Growing Up",
+      "path": "/app/growing-up",
+      "filename": "cubby-15-growing-up.webp",
+      "enabledByDefault": true
+    },
+    {
+      "id": "journal-recap",
+      "label": "Journal recap",
+      "path": "/app/journal/recap",
+      "filename": "cubby-16-journal-recap.webp",
+      "enabledByDefault": true
+    }
+  ]
+}
