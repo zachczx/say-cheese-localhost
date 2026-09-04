@@ -70,6 +70,21 @@ describe('validateProfile', () => {
 });
 
 describe('viewport and route validation', () => {
+  it('uses iPhone 14 Pro Max as the default phone size', () => {
+    expect(VIEWPORTS.find((viewport) => viewport.id === 'phone')).toMatchObject({
+      width: 430,
+      height: 932,
+      deviceScaleFactor: 3,
+      mobile: true,
+      touch: true,
+    });
+  });
+
+  it('keeps every viewport preset ID unique and valid', () => {
+    expect(new Set(VIEWPORTS.map((viewport) => viewport.id)).size).toBe(VIEWPORTS.length);
+    expect(VIEWPORTS.flatMap(validateViewport)).toEqual([]);
+  });
+
   it('rejects invalid viewport dimensions and DPR', () => {
     expect(
       validateViewport({

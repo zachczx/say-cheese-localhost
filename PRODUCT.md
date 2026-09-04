@@ -34,7 +34,8 @@ Say Cheese Localhost is a focused capture controller for local applications: pro
 
 - Chrome Manifest V3 with `debugger`, `downloads`, and `storage` permissions; avoid broad host permissions.
 - Project profiles are validated data and cannot execute arbitrary JavaScript.
-- Initial viewport presets are phone (390 x 844 at DPR 3), tablet (768 x 1024 at DPR 2), and desktop (1440 x 1000 at DPR 1).
+- Viewport presets cover iPhone 14 Pro Max (430 x 932 at DPR 3, the default),
+  standard and compact iPhones, Android, tablet, laptop, and desktop sizes.
 - Captures support ordered readiness checks and declarative actions, bounded timeouts, continue-on-error, retry, stop, and reliable debugger cleanup.
 - Captures bypass service workers, pin the timezone to Asia/Singapore, disable motion and caret rendering, and reset scroll position unless a shot says otherwise.
 - No production databases, production authentication cookies, automatic repository writes, native messaging, video capture, or screenshot comparison infrastructure.

@@ -32,7 +32,7 @@ describe('Cubby portfolio shot curation', () => {
   it('matches the public case study exactly and in editorial order', () => {
     expect(cubbyPortfolioShots.map((shot) => shot.id)).toEqual(portfolioOrder);
     expect(cubbyPortfolioShots.map((shot) => shot.filename)).toEqual(
-      portfolioOrder.map((id) => `${id}.webp`),
+      portfolioOrder.map((id, index) => `cubby-${String(index + 1).padStart(2, '0')}-${id}.webp`),
     );
   });
 

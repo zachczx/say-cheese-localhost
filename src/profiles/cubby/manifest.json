@@ -9,14 +9,14 @@
       "id": "dashboard",
       "label": "Dashboard",
       "path": "/app",
-      "filename": "dashboard.webp",
+      "filename": "cubby-01-dashboard.webp",
       "enabledByDefault": true
     },
     {
       "id": "shelf",
       "label": "The Shelf",
       "path": "/app",
-      "filename": "shelf.webp",
+      "filename": "cubby-02-shelf.webp",
       "enabledByDefault": true,
       "settleMs": 2000
     },
@@ -24,35 +24,35 @@
       "id": "tasks",
       "label": "Tasks",
       "path": "/app/tasks",
-      "filename": "tasks.webp",
+      "filename": "cubby-03-tasks.webp",
       "enabledByDefault": true
     },
     {
       "id": "limits",
       "label": "Limits",
       "path": "/app/limits",
-      "filename": "limits.webp",
+      "filename": "cubby-04-limits.webp",
       "enabledByDefault": true
     },
     {
       "id": "screentimer",
       "label": "Screen Timer",
       "path": "/app/screentimer",
-      "filename": "screentimer.webp",
+      "filename": "cubby-05-screentimer.webp",
       "enabledByDefault": true
     },
     {
       "id": "enrichment",
       "label": "Enrichment",
       "path": "/app/enrichment",
-      "filename": "enrichment.webp",
+      "filename": "cubby-06-enrichment.webp",
       "enabledByDefault": true
     },
     {
       "id": "gym-workout",
       "label": "Gym workout",
       "path": "/app/gym",
-      "filename": "gym-workout.webp",
+      "filename": "cubby-07-gym-workout.webp",
       "enabledByDefault": true,
       "settleMs": 2500
     },
@@ -60,7 +60,7 @@
       "id": "gym-exercise",
       "label": "Gym exercise",
       "path": "/app/gym/stats/exercises",
-      "filename": "gym-exercise.webp",
+      "filename": "cubby-08-gym-exercise.webp",
       "enabledByDefault": true,
       "settleMs": 3500
     },
@@ -68,63 +68,63 @@
       "id": "illness",
       "label": "Illness",
       "path": "/app/illness",
-      "filename": "illness.webp",
+      "filename": "cubby-09-illness.webp",
       "enabledByDefault": true
     },
     {
       "id": "coffee",
       "label": "Coffee",
       "path": "/app/coffee",
-      "filename": "coffee.webp",
+      "filename": "cubby-10-coffee.webp",
       "enabledByDefault": true
     },
     {
       "id": "meals",
       "label": "Meals",
       "path": "/app/meals",
-      "filename": "meals.webp",
+      "filename": "cubby-11-meals.webp",
       "enabledByDefault": true
     },
     {
       "id": "expiry",
       "label": "Expiry",
       "path": "/app/expiry",
-      "filename": "expiry.webp",
+      "filename": "cubby-12-expiry.webp",
       "enabledByDefault": true
     },
     {
       "id": "market",
       "label": "Market",
       "path": "/app/market",
-      "filename": "market.webp",
+      "filename": "cubby-13-market.webp",
       "enabledByDefault": true
     },
     {
       "id": "finance",
       "label": "Finance",
       "path": "/app/finance",
-      "filename": "finance.webp",
+      "filename": "cubby-14-finance.webp",
       "enabledByDefault": true
     },
     {
       "id": "travel",
       "label": "Travel",
       "path": "/app/travel",
-      "filename": "travel.webp",
+      "filename": "cubby-15-travel.webp",
       "enabledByDefault": true
     },
     {
       "id": "growing-up",
       "label": "Growing Up",
       "path": "/app/growing-up",
-      "filename": "growing-up.webp",
+      "filename": "cubby-16-growing-up.webp",
       "enabledByDefault": true
     },
     {
       "id": "journal-recap",
       "label": "Journal recap",
       "path": "/app/journal/recap",
-      "filename": "journal-recap.webp",
+      "filename": "cubby-17-journal-recap.webp",
       "enabledByDefault": true
     }
   ]

@@ -142,7 +142,7 @@ export async function prepareDocument(
   throwIfAborted(signal);
   await evaluate(
     session,
-    `(() => {
+    `(async () => {
       const id = 'say-cheese-localhost-capture-style';
       document.getElementById(id)?.remove();
       const style = document.createElement('style');
@@ -152,8 +152,25 @@ export async function prepareDocument(
       window.focus();
       window.scrollTo(0, 0);
       document.documentElement.style.zoom = '1';
+
+      const nextFrame = () => new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      );
+      const step = Math.max(240, Math.floor(innerHeight * 0.8));
+      let y = 0;
+      for (let index = 0; index < 24; index += 1) {
+        const maxY = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+        if (y >= maxY) break;
+        y = Math.min(maxY, y + step);
+        window.scrollTo(0, y);
+        await nextFrame();
+      }
+
+      window.scrollTo(0, 0);
+      await nextFrame();
       return true;
     })()`,
+    true,
   );
 }
 

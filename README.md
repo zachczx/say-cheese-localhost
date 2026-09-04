@@ -46,7 +46,10 @@ The default Local demo profile points to `http://localhost:5173`. In the control
 3. Choose **Capture**.
 4. Review the files under `Downloads/say-cheese-localhost/demo/`.
 
-The phone output should be exactly `1170 × 2532`. WebP quality must be assessed visually in Chrome before the format is adopted for application profiles; use lossless PNG instead if artifacts are visible.
+The default iPhone 14 Pro Max output should be exactly `1290 × 2796` from a
+`430 × 932` CSS viewport at 3× DPR. WebP quality must be assessed visually in
+Chrome before the format is adopted for application profiles; use lossless PNG
+instead if artifacts are visible.
 
 ## Development
 
@@ -77,6 +80,11 @@ Bundled replacement assets belong under `public/profiles/<profile>/assets/`; Vit
 ## Capture lifecycle
 
 Every job creates a dedicated Chrome window, attaches one debugger session, enables the required CDP domains, applies viewport and timezone emulation, and processes shots in order. Each shot has a 45-second overall deadline and 15-second readiness defaults. Stop, failure, target closure, and external debugger detachment all pass through the same cleanup path.
+
+Before route-specific framing, capture preparation briefly sweeps the document
+to trigger lazy-rendered content and images, then returns to the top. This keeps
+the main route deterministic without requiring someone to scroll the capture
+window manually.
 
 By default, a completed or stopped job closes its capture window. Users may retain the window after a failure for inspection. Debugger detachment and emulation cleanup still occur before the window is retained.
 
@@ -110,6 +118,10 @@ JSON.
 The Cubby profile is registered in the controller, so selecting **Cubby** shows
 the complete route queue. Registration does not make a production-data capture
 safe; use a verified redacted local environment.
+
+Captured files use the project-prefixed editorial sequence
+`cubby-01-dashboard.webp` through `cubby-17-journal-recap.webp`, so their order
+and source remain clear outside the output folder.
 
 Do not capture production Cubby data until all of the following are available:
 
