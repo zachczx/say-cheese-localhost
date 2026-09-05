@@ -5,19 +5,26 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import App from '../src/controller/App.svelte';
 import { runCaptureJob, type CaptureJobOptions, type CaptureJobResult } from '../src/capture/job';
+import { pingAddress } from '../src/capture/ping';
 
 vi.mock('../src/capture/job', async () => {
   const actual = await vi.importActual<typeof import('../src/capture/job')>('../src/capture/job');
   return { ...actual, runCaptureJob: vi.fn() };
 });
 
+vi.mock('../src/capture/ping', () => ({
+  pingAddress: vi.fn(),
+}));
+
 const runCaptureJobMock = vi.mocked(runCaptureJob);
+const pingAddressMock = vi.mocked(pingAddress);
 let storageGetMock: Mock;
 let storageSetMock: Mock;
 
 describe('controller', () => {
   beforeEach(() => {
     runCaptureJobMock.mockReset();
+    pingAddressMock.mockReset();
     storageGetMock = vi.fn(async () => ({}));
     storageSetMock = vi.fn(async () => undefined);
     Object.defineProperty(globalThis, 'chrome', {
@@ -291,5 +298,132 @@ describe('controller', () => {
         }),
       }),
     );
+  });
+
+  it('auto-pings the initial base URL on load and displays reachable status', async () => {
+    pingAddressMock.mockResolvedValueOnce({
+      reachable: true,
+      latencyMs: 14,
+      status: 200,
+      statusText: 'OK',
+      timestamp: Date.now(),
+    });
+    render(App);
+
+    await waitFor(() => {
+      expect(pingAddressMock).toHaveBeenCalledWith('http://localhost:5173', expect.any(Object));
+    });
+    expect(await screen.findByText('Reachable')).toBeTruthy();
+    expect(screen.getByText(/14ms/)).toBeTruthy();
+    expect(screen.getByText(/HTTP 200/)).toBeTruthy();
+  });
+
+  it('displays checking status while in flight and unreachable status when ping fails', async () => {
+    let resolvePing!: (val: {
+      reachable: boolean;
+      latencyMs: number;
+      error: string;
+      timestamp: number;
+    }) => void;
+    pingAddressMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePing = resolve;
+        }),
+    );
+    render(App);
+
+    expect(await screen.findByText('Checking connection…')).toBeTruthy();
+
+    resolvePing({
+      reachable: false,
+      latencyMs: 25,
+      error: 'Connection refused',
+      timestamp: Date.now(),
+    });
+
+    expect(await screen.findByText('Unreachable')).toBeTruthy();
+    expect(screen.getByText(/Connection refused/)).toBeTruthy();
+  });
+
+  it('debounces auto-ping when base URL changes to a valid URL', async () => {
+    pingAddressMock.mockResolvedValue({
+      reachable: true,
+      latencyMs: 10,
+      status: 200,
+      timestamp: Date.now(),
+    });
+    render(App);
+
+    await screen.findByText('Reachable');
+
+    const baseUrlInput = screen.getByLabelText('Base URL');
+    await fireEvent.input(baseUrlInput, { target: { value: 'http://localhost:3000' } });
+
+    await waitFor(() => {
+      expect(pingAddressMock).toHaveBeenCalledWith('http://localhost:3000', expect.any(Object));
+    });
+  });
+
+  it('does not ping and clears ping status when base URL is invalid', async () => {
+    pingAddressMock.mockResolvedValue({
+      reachable: true,
+      latencyMs: 10,
+      status: 200,
+      timestamp: Date.now(),
+    });
+    render(App);
+
+    await screen.findByText('Reachable');
+    pingAddressMock.mockClear();
+
+    const baseUrlInput = screen.getByLabelText('Base URL');
+    await fireEvent.input(baseUrlInput, { target: { value: 'https://example.com' } });
+
+    expect(screen.queryByText('Reachable')).toBeNull();
+    expect(screen.queryByText('Checking connection…')).toBeNull();
+    expect(pingAddressMock).not.toHaveBeenCalled();
+  });
+
+  it('aborts in-flight ping and does not overwrite with stale data when URL changes', async () => {
+    let resolveFirstPing!: (val: {
+      reachable: boolean;
+      latencyMs: number;
+      error: string;
+      timestamp: number;
+    }) => void;
+    pingAddressMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstPing = resolve;
+        }),
+    );
+    render(App);
+
+    expect(await screen.findByText('Checking connection…')).toBeTruthy();
+
+    pingAddressMock.mockResolvedValueOnce({
+      reachable: true,
+      latencyMs: 5,
+      status: 200,
+      timestamp: Date.now(),
+    });
+
+    const baseUrlInput = screen.getByLabelText('Base URL');
+    await fireEvent.input(baseUrlInput, { target: { value: 'http://localhost:4000' } });
+
+    resolveFirstPing({
+      reachable: false,
+      latencyMs: 99,
+      error: 'Stale error message',
+      timestamp: Date.now(),
+    });
+
+    await waitFor(() => {
+      expect(pingAddressMock).toHaveBeenCalledWith('http://localhost:4000', expect.any(Object));
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Stale error message')).toBeNull();
+    });
   });
 });

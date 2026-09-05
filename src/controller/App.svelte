@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
 
   import { normalizeLocalBaseUrl, runCaptureJob, type ShotStatus } from '../capture/job';
+  import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
   import type { CaptureProfile, Shot } from '../profiles/schema';
   import { VIEWPORTS } from '../profiles/viewports';
@@ -35,6 +36,10 @@
   let baseUrl = $state(initialProfile.defaultBaseUrl);
   let baseUrlInvalid = $state(false);
   let baseUrlError = $state('');
+  let pinging = $state(false);
+  let pingResult = $state<PingResult | undefined>();
+  let pingAbortController: AbortController | undefined;
+  let pingDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let viewportId = $state(initialProfile.defaultViewport);
   let continueOnError = $state(true);
   let retainWindow = $state(false);
@@ -74,7 +79,11 @@
     void initialize();
   });
 
-  onDestroy(() => abortController?.abort());
+  onDestroy(() => {
+    abortController?.abort();
+    pingAbortController?.abort();
+    clearTimeout(pingDebounceTimer);
+  });
 
   function awaitManualCapture(shot: Shot, signal: AbortSignal): Promise<'capture' | 'next'> {
     if (signal.aborted) return Promise.reject(signal.reason);
@@ -107,6 +116,7 @@
       settingsError = 'Saved settings could not be loaded. Safe defaults are active.';
     } finally {
       ready = true;
+      scheduleAutoPing(0);
     }
   }
 
@@ -131,6 +141,9 @@
       ? loadedPreferences.viewportId
       : storedProfile.defaultViewport;
     baseUrl = loadedPreferences.baseUrls[storedProfile.id] ?? storedProfile.defaultBaseUrl;
+    clearTimeout(pingDebounceTimer);
+    pingAbortController?.abort();
+    pingResult = undefined;
     continueOnError = loadedPreferences.continueOnError;
     retainWindow = loadedPreferences.retainWindowAfterFailure;
     captureBeyondViewport = loadedPreferences.captureBeyondViewport;
@@ -150,20 +163,72 @@
     baseUrl = preferences.baseUrls[next.id] ?? next.defaultBaseUrl;
     baseUrlInvalid = false;
     baseUrlError = '';
+    clearTimeout(pingDebounceTimer);
+    pingAbortController?.abort();
+    pingResult = undefined;
     viewportId = next.defaultViewport;
     preferences.viewportId = next.defaultViewport;
     selectedIds = preferences.selectedShots[next.id] ?? defaultShotIds(next);
     resetShotStates();
     hideError();
     void persist();
+    scheduleAutoPing(0);
   }
 
   function updateBaseUrl(value: string): void {
     baseUrl = value;
-    validateBaseUrl(false);
+    clearTimeout(pingDebounceTimer);
+    pingAbortController?.abort();
+    pingResult = undefined;
+    const valid = validateBaseUrl(false);
     if (!preferences) return;
     preferences.baseUrls[profile.id] = value;
     void persist();
+    if (valid) {
+      scheduleAutoPing(300);
+    }
+  }
+
+  function isBaseUrlValid(): boolean {
+    try {
+      normalizeLocalBaseUrl(baseUrl);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function scheduleAutoPing(delayMs = 300): void {
+    clearTimeout(pingDebounceTimer);
+    if (running) return;
+    if (!isBaseUrlValid()) {
+      pingAbortController?.abort();
+      pingResult = undefined;
+      pinging = false;
+      return;
+    }
+    pingDebounceTimer = setTimeout(() => {
+      void runPing();
+    }, delayMs);
+  }
+
+  async function runPing(): Promise<void> {
+    if (running || !isBaseUrlValid()) return;
+    pingAbortController?.abort();
+    const currentAbort = new AbortController();
+    pingAbortController = currentAbort;
+    const targetUrl = baseUrl;
+    pinging = true;
+    try {
+      const result = await pingAddress(targetUrl, { signal: currentAbort.signal });
+      if (!currentAbort.signal.aborted && baseUrl === targetUrl) {
+        pingResult = result;
+      }
+    } finally {
+      if (pingAbortController === currentAbort) {
+        pinging = false;
+      }
+    }
   }
 
   function updateViewport(nextViewportId: string): void {
@@ -226,6 +291,9 @@
       shotStates[shot.id] = { status: 'pending' };
     }
     abortController = new AbortController();
+    clearTimeout(pingDebounceTimer);
+    pingAbortController?.abort();
+    pinging = false;
     running = true;
     stopping = false;
     hideError();
@@ -476,6 +544,33 @@
             oninput={(event) => updateBaseUrl(event.currentTarget.value)}
             onblur={() => validateBaseUrl(true)}
           />
+          {#if pinging}
+            <div class="ping-status ping-status-pending" role="status" aria-live="polite">
+              <span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
+              <span>Checking connection…</span>
+            </div>
+          {:else if pingResult}
+            <div
+              class="ping-status {pingResult.reachable
+                ? 'ping-status-success'
+                : 'ping-status-error'}"
+              role="status"
+              aria-live="polite"
+            >
+              <span class="ping-dot" aria-hidden="true"></span>
+              {#if pingResult.reachable}
+                <span class="ping-message">
+                  <strong>Reachable</strong> · {pingResult.latencyMs}ms{pingResult.status
+                    ? ` (HTTP ${pingResult.status})`
+                    : ''}
+                </span>
+              {:else}
+                <span class="ping-message">
+                  <strong>Unreachable</strong> · {pingResult.error ?? 'Connection refused'}
+                </span>
+              {/if}
+            </div>
+          {/if}
           <p class="field-help" id="base-url-help">
             {profile.id === 'cubby'
               ? 'Cubby QA: use 127.0.0.1:5174 with a verified household seed.'
