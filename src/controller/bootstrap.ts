@@ -1,3 +1,7 @@
+import { mount } from 'svelte';
+
+import App from './App.svelte';
+
 if (location.protocol !== 'chrome-extension:') {
   const values: Record<string, unknown> = {};
   const previewChrome = {
@@ -23,6 +27,7 @@ if (location.protocol !== 'chrome-extension:') {
   });
 }
 
-await import('./controller');
+const target = document.getElementById('app');
+if (!target) throw new Error('Missing controller application root.');
 
-export {};
+mount(App, { target });

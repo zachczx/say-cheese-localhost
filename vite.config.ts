@@ -1,5 +1,7 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -26,6 +28,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
   },
   plugins: [
+    svelte({ configFile: false }),
+    svelteTesting(),
     {
       name: 'copy-extension-manifest',
       closeBundle() {

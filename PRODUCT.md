@@ -8,11 +8,11 @@ web
 
 ## Stack
 
-Vanilla TypeScript, HTML, and CSS packaged as a locally installed Chrome Manifest V3 extension. Use Vite for builds, Vitest for unit tests, ESLint for linting, and pnpm for dependency management. Do not add a frontend framework unless the controller becomes materially more complex.
+Svelte 5, TypeScript, HTML, and CSS packaged as a locally installed Chrome Manifest V3 extension. The controller is a small client-only Svelte application; the background worker, capture engine, profiles, and storage remain plain TypeScript. Use Vite for builds, Vitest for unit tests, ESLint for linting, and pnpm for dependency management. Do not add SvelteKit, client-side routing, or a server runtime without a separate product need.
 
 ## Users
 
-The primary user is a developer or portfolio owner capturing a curated, repeatable set of screens from applications running on localhost. They start the target application's safe screenshot environment, choose a project profile and viewport, run an ordered capture job, then manually review and promote approved images.
+The primary user is a developer or portfolio owner capturing a curated, repeatable set of screens from applications running on localhost. They start the target application's safe screenshot environment, choose a project profile and viewport, prepare and capture each view at their own pace, then manually review and promote approved images.
 
 ## Product Purpose
 
@@ -37,10 +37,10 @@ Say Cheese Localhost is a focused capture controller for local applications: pro
 - Viewport presets cover iPhone 14 Pro Max (430 x 932 at DPR 3, the default),
   standard and compact iPhones, Android, tablet, laptop, and desktop sizes.
 - Captures support ordered readiness checks and declarative actions, bounded timeouts, continue-on-error, retry, stop, and reliable debugger cleanup.
-- Captures bypass service workers, pin the timezone to Asia/Singapore, disable motion and caret rendering, and reset scroll position unless a shot says otherwise.
+- Captures bypass service workers, pin the timezone to Asia/Singapore, disable motion and caret rendering, and preserve manual framing; only batch preparation resets scroll.
 - No production databases, production authentication cookies, automatic repository writes, native messaging, video capture, or screenshot comparison infrastructure.
-- Cubby capture must refuse to run unless its development-only preflight marker confirms screenshot mode and redacted data.
-- Requests for personal image hosts must be intercepted before they reach the origin and replaced deterministically with bundled profile assets.
+- Cubby defaults to its synthetic QA server on 127.0.0.1:5174. The user verifies its seed before capture; automated preflight is not required for this manual workflow.
+- Cubby QA serves seeded photos locally. Generic request replacements remain available for profiles that need them.
 
 ## Brand Commitments
 
@@ -54,7 +54,7 @@ The implementation brief defines the capture workflow, Chrome architecture, prof
 
 ## Product Principles
 
-- Safety is a prerequisite, not a warning: unsafe or unverified capture environments are refused.
+- Keep capture local and use a verified synthetic QA environment. The tool does not prove database isolation; human review remains required.
 - Profiles stay declarative and project-specific while the capture engine stays reusable.
 - Every long-running action exposes clear state, recovery, and cleanup behavior.
 - Deterministic output matters more than hidden automation or format continuity.

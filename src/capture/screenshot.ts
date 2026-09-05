@@ -25,8 +25,17 @@ export async function captureShot(session: DebuggerSession, shot: Shot): Promise
     format: 'webp',
     quality: 100,
     fromSurface: true,
-    captureBeyondViewport: mode !== 'viewport',
+    captureBeyondViewport: true,
   };
+
+  if (mode === 'viewport') {
+    // An emulated phone can be taller than its physical Chrome window. Request
+    // the complete viewport explicitly so the compositor paints every pixel.
+    params.clip = await evaluate<ElementRect & { scale: number }>(
+      session,
+      '({ x: scrollX, y: scrollY, width: innerWidth, height: innerHeight, scale: 1 })',
+    );
+  }
 
   if (mode === 'full-page') {
     const metrics = await session.send<LayoutMetrics>('Page.getLayoutMetrics');
@@ -49,8 +58,17 @@ export async function captureShot(session: DebuggerSession, shot: Shot): Promise
     params.clip = { ...rect, scale: 1 };
   }
 
-  const result = await session.send<ScreenshotResult>('Page.captureScreenshot', params);
-  return `data:image/webp;base64,${result.data}`;
+  try {
+    const result = await session.send<ScreenshotResult>('Page.captureScreenshot', params);
+    return `data:image/webp;base64,${result.data}`;
+  } finally {
+    if (mode === 'viewport') {
+      // Chrome may clamp scroll while rendering beyond its physical window.
+      // Restore the prepared position once its emulated viewport is restored.
+      const clip = params.clip as ElementRect;
+      await evaluate(session, `window.scrollTo(${clip.x}, ${clip.y})`);
+    }
+  }
 }
 
 export async function downloadScreenshot(

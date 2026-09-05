@@ -28,6 +28,7 @@ export interface Shot {
   path: string;
   filename: string;
   enabledByDefault: boolean;
+  preparation?: string;
   ready?: ReadyCondition[];
   actions?: CaptureAction[];
   capture?: {

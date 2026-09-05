@@ -15,7 +15,15 @@ import { RequestReplacementInterceptor } from './requests';
 import { captureShot, downloadScreenshot, waitForDownload } from './screenshot';
 
 export type ShotStatus =
-  'pending' | 'navigating' | 'preparing' | 'capturing' | 'downloading' | 'complete' | 'failed';
+  | 'pending'
+  | 'waiting'
+  | 'skipped'
+  | 'navigating'
+  | 'preparing'
+  | 'capturing'
+  | 'downloading'
+  | 'complete'
+  | 'failed';
 
 export interface ShotUpdate {
   shotId: string;
@@ -39,11 +47,14 @@ export interface CaptureJobOptions {
   retainWindowAfterFailure: boolean;
   signal?: AbortSignal;
   onShotUpdate?: (update: ShotUpdate) => void;
+  onManualReady?: (shot: Shot, signal: AbortSignal) => Promise<'capture' | 'next'>;
+  onWarnings?: (warnings: string[]) => void;
   onProgress?: (completed: number, total: number) => void;
 }
 
 export interface CaptureJobResult {
   completed: number;
+  skipped?: number;
   failures: CaptureFailure[];
   stopped: boolean;
   windowRetained: boolean;
@@ -65,6 +76,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   let stopped = false;
   let detached = false;
   let completed = 0;
+  let skipped = 0;
   let unexpectedError: unknown;
   let windowRetained: boolean;
   const pageErrors: string[] = [];
@@ -89,16 +101,38 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
       detached = true;
       jobController.abort(new Error(`Chrome detached the capture debugger (${reason}).`));
     });
+    const requests = new Map<string, string>();
     session.onEvent((event) => {
       if (event.method === 'Runtime.exceptionThrown') {
-        const details = event.params.exceptionDetails as
-          { text?: string; exception?: { description?: string } } | undefined;
-        pageErrors.push(details?.exception?.description ?? details?.text ?? 'Page exception');
+        pageErrors.push('The page raised an uncaught exception. Inspect the capture window.');
       }
-      if (event.method === 'Log.entryAdded') {
-        const entry = event.params.entry as { level?: string; text?: string } | undefined;
-        if (entry?.level === 'error' && entry.text) pageErrors.push(entry.text);
+      if (event.method === 'Network.requestWillBeSent') {
+        const request = event.params.request as { url?: string } | undefined;
+        if (['Fetch', 'XHR'].includes(String(event.params.type)) && request?.url) {
+          try {
+            const url = new URL(normalizeLocalBaseUrl(request.url));
+            requests.set(String(event.params.requestId), url.origin + url.pathname);
+          } catch {
+            /* Optional remote services do not block a local capture. */
+          }
+        }
       }
+      const requestId = String(event.params.requestId);
+      const request = requests.get(requestId);
+      if (request && event.method === 'Network.responseReceived') {
+        const response = event.params.response as { status?: number } | undefined;
+        if (response?.status && response.status >= 400) {
+          pageErrors.push(`${request} returned HTTP ${response.status}.`);
+        }
+      }
+      if (event.method === 'Network.loadingFailed' || event.method === 'Network.loadingFinished') {
+        if (request && event.method === 'Network.loadingFailed' && !event.params.canceled) {
+          pageErrors.push(`${request} could not load.`);
+        }
+        requests.delete(requestId);
+      }
+      if (pageErrors.length > 10) pageErrors.splice(0, pageErrors.length - 10);
+      options.onWarnings?.([...new Set(pageErrors)]);
     });
 
     await Promise.all([
@@ -133,64 +167,131 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     options.onProgress?.(0, options.shots.length);
     for (const shot of options.shots) {
       throwIfAborted(jobController.signal);
-      const currentUrl = new URL(shot.path, baseUrl).href;
+      let currentUrl = new URL(shot.path, baseUrl).href;
       pageErrors.length = 0;
-
+      requests.clear();
+      options.onWarnings?.([]);
       try {
         await runWithTimeout(
-          async (shotSignal) => {
+          async (signal) => {
             tracker?.reset();
             update(options, shot, 'navigating', currentUrl);
             const navigation = await navigateAndWait(
               session as DebuggerSession,
               currentUrl,
-              shotSignal,
+              signal,
             );
             if (navigation.status !== undefined && navigation.status >= 400) {
               throw new Error(`Navigation returned HTTP ${navigation.status}.`);
             }
-
-            update(options, shot, 'preparing', currentUrl);
-            await tracker?.waitForQuiet(shotSignal);
-            await prepareDocument(session as DebuggerSession, shotSignal);
-            await waitForReadyConditions(session as DebuggerSession, shot.ready ?? [], shotSignal);
-            await runActions(
-              shot.actions ?? [],
-              createCdpActionDriver(session as DebuggerSession, shotSignal),
-              { signal: shotSignal },
-            );
-            await tracker?.waitForQuiet(shotSignal);
-            await waitForDocumentAssets(session as DebuggerSession, shotSignal);
-            await interceptor?.waitForIdle(shotSignal);
-            if (shot.settleMs) await delay(shot.settleMs, shotSignal);
-
-            if (captureWindowId !== undefined) {
-              await chrome.windows.update(captureWindowId, { focused: true });
+            if (!options.onManualReady) {
+              update(options, shot, 'preparing', currentUrl);
+              await tracker?.waitForQuiet(signal);
+              await prepareDocument(session as DebuggerSession, signal);
+              await waitForReadyConditions(session as DebuggerSession, shot.ready ?? [], signal);
+              await runActions(
+                shot.actions ?? [],
+                createCdpActionDriver(session as DebuggerSession, signal),
+                { signal },
+              );
             }
-            await (session as DebuggerSession).send('Page.bringToFront');
-            update(options, shot, 'capturing', currentUrl);
-            const dataUrl = await captureShot(session as DebuggerSession, shot);
-            update(options, shot, 'downloading', currentUrl);
-            const downloadId = await downloadScreenshot(
-              dataUrl,
-              options.profile.outputDirectory,
-              shot.filename,
-            );
-            await waitForDownload(downloadId, shotSignal);
           },
           SHOT_TIMEOUT_MS,
-          `Shot "${shot.id}" did not finish`,
+          `Could not open "${shot.id}"`,
           jobController.signal,
         );
-        completed += 1;
-        update(options, shot, 'complete', currentUrl);
-        options.onProgress?.(completed + failures.length, options.shots.length);
+
+        let saved = false;
+        let lastFailure: CaptureFailure | undefined;
+        do {
+          // Human preparation has no deadline. Stop or target closure still aborts it.
+          if (options.onManualReady) {
+            update(options, shot, 'waiting', currentUrl);
+            const action = await options.onManualReady(shot, jobController.signal);
+            throwIfAborted(jobController.signal);
+            if (action === 'next') break;
+          }
+          try {
+            await runWithTimeout(
+              async (signal) => {
+                if (captureWindowId !== undefined)
+                  await chrome.windows.update(captureWindowId, { focused: true });
+                await (session as DebuggerSession).send('Page.bringToFront');
+                currentUrl = await evaluate<string>(session as DebuggerSession, 'location.href');
+                if (new URL(normalizeLocalBaseUrl(currentUrl)).origin !== new URL(baseUrl).origin) {
+                  throw new Error(
+                    'The capture window left the selected localhost origin. Return to the application and retry.',
+                  );
+                }
+                update(options, shot, 'preparing', currentUrl);
+                if (options.onManualReady)
+                  await prepareDocument(session as DebuggerSession, signal, true);
+                else await tracker?.waitForQuiet(signal);
+                await waitForDocumentAssets(
+                  session as DebuggerSession,
+                  signal,
+                  15_000,
+                  shot.capture,
+                );
+                await interceptor?.waitForIdle(signal);
+                if (!options.onManualReady && shot.settleMs) await delay(shot.settleMs, signal);
+                throwIfAborted(signal);
+                update(options, shot, 'capturing', currentUrl);
+                const dataUrl = await captureShot(session as DebuggerSession, shot);
+                throwIfAborted(signal);
+                update(options, shot, 'downloading', currentUrl);
+                const downloadId = await downloadScreenshot(
+                  dataUrl,
+                  options.profile.outputDirectory,
+                  shot.filename,
+                );
+                await waitForDownload(downloadId, signal);
+                throwIfAborted(signal);
+              },
+              SHOT_TIMEOUT_MS,
+              `Shot "${shot.id}" did not finish`,
+              jobController.signal,
+            );
+            if (!saved) completed += 1;
+            saved = true;
+            lastFailure = undefined;
+            update(options, shot, 'complete', currentUrl);
+            options.onProgress?.(completed + skipped + failures.length, options.shots.length);
+          } catch (error) {
+            if (isAbortError(error) || jobController.signal.aborted) throw error;
+            if (!options.onManualReady) throw error;
+            lastFailure = {
+              shotId: shot.id,
+              currentUrl,
+              message: formatShotError(error, pageErrors),
+            };
+            update(options, shot, 'failed', currentUrl, lastFailure.message);
+          }
+          // Diagnostics belong to the next attempt from this point forward.
+          pageErrors.length = 0;
+          requests.clear();
+        } while (options.onManualReady);
+
+        if (lastFailure) {
+          if (saved) completed -= 1;
+          failures.push(lastFailure);
+          update(options, shot, 'failed', currentUrl, lastFailure.message);
+        } else if (!saved) {
+          skipped += 1;
+          update(options, shot, 'skipped', currentUrl);
+        } else {
+          update(options, shot, 'complete', currentUrl);
+        }
+        options.onProgress?.(
+          Math.min(options.shots.length, completed + skipped + failures.length),
+          options.shots.length,
+        );
       } catch (error) {
         if (isAbortError(error) || jobController.signal.aborted) throw error;
         const message = formatShotError(error, pageErrors);
         failures.push({ shotId: shot.id, currentUrl, message });
         update(options, shot, 'failed', currentUrl, message);
-        options.onProgress?.(completed + failures.length, options.shots.length);
+        options.onProgress?.(completed + skipped + failures.length, options.shots.length);
         if (!options.continueOnError) break;
       }
     }
@@ -220,7 +321,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
 
   if (unexpectedError !== undefined) throw unexpectedError;
 
-  return { completed, failures, stopped, windowRetained };
+  return { completed, skipped, failures, stopped, windowRetained };
 }
 
 export function normalizeLocalBaseUrl(value: string): string {

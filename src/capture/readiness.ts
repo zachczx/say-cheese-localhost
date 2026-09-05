@@ -1,4 +1,4 @@
-import type { ReadyCondition } from '../profiles/schema';
+import type { ReadyCondition, Shot } from '../profiles/schema';
 import { delay, runWithTimeout, throwIfAborted } from './async';
 import type { DebuggerEvent, DebuggerSession } from './debugger';
 
@@ -138,6 +138,7 @@ export async function waitForReadyConditions(
 export async function prepareDocument(
   session: DebuggerSession,
   signal?: AbortSignal,
+  preserveFraming = false,
 ): Promise<void> {
   throwIfAborted(signal);
   await evaluate(
@@ -149,6 +150,7 @@ export async function prepareDocument(
       style.id = id;
       style.textContent = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important;scrollbar-width:none!important}::-webkit-scrollbar{width:0!important;height:0!important}';
       document.head.append(style);
+      if (${preserveFraming}) return true;
       window.focus();
       window.scrollTo(0, 0);
       document.documentElement.style.zoom = '1';
@@ -178,32 +180,80 @@ export async function waitForDocumentAssets(
   session: DebuggerSession,
   signal?: AbortSignal,
   timeoutMs = 15_000,
+  capture?: Shot['capture'],
 ): Promise<void> {
   const visibleImages = `Array.from(document.images).filter((image) => {
+    const capture = ${JSON.stringify(capture ?? { mode: 'viewport' })};
+    let area = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+    if (capture.mode === 'full-page') {
+      area = { top: -scrollY, left: -scrollX,
+        bottom: document.documentElement.scrollHeight - scrollY,
+        right: document.documentElement.scrollWidth - scrollX };
+    } else if (capture.mode === 'element') {
+      const element = document.querySelector(capture.selector);
+      if (!element) throw new Error('Capture element is missing. Prepare the screen and retry.');
+      area = element.getBoundingClientRect();
+    }
     const rect = image.getBoundingClientRect();
-    return rect.bottom >= 0 && rect.top <= innerHeight && rect.right >= 0 && rect.left <= innerWidth;
+    if (rect.width <= 0 || rect.height <= 0 || rect.bottom <= area.top ||
+        rect.top >= area.bottom || rect.right <= area.left || rect.left >= area.right) return false;
+    for (let element = image; element; element = element.parentElement) {
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' ||
+          style.visibility === 'collapse' || style.opacity === '0') return false;
+    }
+    return true;
   })`;
   await runWithTimeout(
     async (timeoutSignal) => {
-      while (
-        !(await evaluate<boolean>(
+      while (true) {
+        throwIfAborted(timeoutSignal);
+        const state = await evaluate<{ ready: boolean; broken: number }>(
           session,
-          `(document.fonts?.status ?? 'loaded') === 'loaded' && ${visibleImages}.every((image) => image.complete)`,
-        ))
-      ) {
+          `(() => {
+            const images = ${visibleImages};
+            return {
+              ready: (document.fonts?.status ?? 'loaded') === 'loaded' && images.every((image) => image.complete),
+              broken: images.filter((image) => image.complete &&
+                (image.naturalWidth <= 0 || image.naturalHeight <= 0)).length,
+            };
+          })()`,
+        );
+        if (state.broken > 0) {
+          throw new Error(
+            `${state.broken} image(s) in the capture area failed to load. Reload or fix the images, then retry.`,
+          );
+        }
+        if (state.ready) break;
         await delay(75, timeoutSignal);
       }
-      await evaluate(
+      const decoded = await evaluate<boolean>(
         session,
-        `(() => Promise.race([
-          Promise.allSettled(${visibleImages}.map((image) => typeof image.decode === 'function' ? image.decode() : Promise.resolve())),
-          new Promise((resolve) => setTimeout(resolve, 1000))
-        ]).then(() => true))()`,
+        `(async () => {
+          let timer;
+          try {
+            return await Promise.race([
+              Promise.all(${visibleImages}.map(async (image) => {
+                if (typeof image.decode === 'function') await image.decode();
+                return image.naturalWidth > 0 && image.naturalHeight > 0;
+              })).then((results) => results.every(Boolean), () => false),
+              new Promise((resolve) => { timer = setTimeout(() => resolve(false), 1000); }),
+            ]);
+          } finally {
+            clearTimeout(timer);
+          }
+        })()`,
         true,
       );
+      throwIfAborted(timeoutSignal);
+      if (!decoded) {
+        throw new Error(
+          'Images in the capture area could not be decoded. Reload or fix the images, then retry.',
+        );
+      }
     },
     timeoutMs,
-    'Fonts or visible images did not become ready',
+    'Fonts or images in the capture area did not become ready',
     signal,
   );
 }

@@ -43,6 +43,10 @@ body {
   background: var(--canvas);
 }
 
+#app {
+  min-height: 100vh;
+}
+
 button,
 input,
 select {
@@ -122,7 +126,6 @@ svg {
 
 .quiet-button,
 .text-button,
-.selection-actions button,
 .error-banner button {
   color: var(--ink);
   background: transparent;
@@ -139,8 +142,7 @@ svg {
 }
 
 .quiet-button:hover,
-.text-button:hover,
-.selection-actions button:hover {
+.text-button:hover {
   background: var(--surface-muted);
 }
 
@@ -152,6 +154,19 @@ svg {
   display: grid;
   grid-template-columns: minmax(270px, 330px) minmax(0, 1fr);
   min-height: calc(100vh - 62px);
+}
+
+.controller-loading {
+  display: grid;
+  min-height: calc(100vh - 62px);
+  place-items: center;
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+.controller-loading p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .configuration {
@@ -179,6 +194,24 @@ svg {
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.settings-warning {
+  padding: 12px 14px;
+  color: #704106;
+  background: var(--amber-soft);
+  border: 1px solid #d7a653;
+  border-radius: 10px;
+}
+
+.settings-warning strong {
+  font-size: 13px;
+}
+
+.settings-warning p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .field-group {
@@ -541,12 +574,6 @@ progress::-webkit-progress-value {
   padding: 24px 28px 14px;
 }
 
-.selection-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.selection-actions button,
 .text-button {
   min-height: 34px;
   padding: 6px 9px;
@@ -605,8 +632,9 @@ progress::-webkit-progress-value {
 }
 
 .select-column {
-  width: 44px;
-  padding-inline-start: 20px !important;
+  width: 52px;
+  padding-inline: 12px 20px !important;
+  text-align: right !important;
 }
 
 .order-column {
@@ -731,4 +759,13 @@ progress::-webkit-progress-value {
   .current-state {
     display: none;
   }
+}
+
+.manual-preparation {
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+.manual-preparation p {
+  margin: 8px 0 12px;
 }
