@@ -382,7 +382,7 @@ describe('controller', () => {
     await waitFor(() => {
       expect(pingAddressMock).toHaveBeenCalledWith('http://localhost:5173', expect.any(Object));
     });
-    expect(await screen.findByText('Reachable')).toBeTruthy();
+    expect(await screen.findByText('Up')).toBeTruthy();
     expect(screen.getByText(/14ms/)).toBeTruthy();
     expect(screen.getByText(/HTTP 200/)).toBeTruthy();
   });
@@ -411,8 +411,53 @@ describe('controller', () => {
       timestamp: Date.now(),
     });
 
-    expect(await screen.findByText('Unreachable')).toBeTruthy();
+    expect(await screen.findByText('Down')).toBeTruthy();
     expect(screen.getByText(/Connection refused/)).toBeTruthy();
+  });
+
+  it('retries manually and every 30 seconds until reachable, then stops', async () => {
+    vi.useFakeTimers();
+    const view = render(App);
+    pingAddressMock.mockResolvedValue({ reachable: false, latencyMs: 1, timestamp: 0 });
+    try {
+      await vi.advanceTimersByTimeAsync(1);
+      expect(screen.getByText('Down')).toBeTruthy();
+      const failedStatus = screen.getByRole('status');
+      expect(failedStatus.classList.contains('ping-status-error')).toBe(true);
+      expect(failedStatus.classList.contains('ping-status-success')).toBe(false);
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(pingAddressMock).toHaveBeenCalledTimes(2);
+      await fireEvent.click(screen.getByRole('button', { name: 'Retry now' }));
+      expect(pingAddressMock).toHaveBeenCalledTimes(3);
+      pingAddressMock.mockResolvedValue({ reachable: true, latencyMs: 1, timestamp: 0 });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(screen.getByText('Up')).toBeTruthy();
+      const recoveredStatus = screen.getByRole('status');
+      expect(recoveredStatus.classList.contains('ping-status-success')).toBe(true);
+      expect(recoveredStatus.classList.contains('ping-status-error')).toBe(false);
+      expect(pingAddressMock).toHaveBeenCalledTimes(4);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(pingAddressMock).toHaveBeenCalledTimes(4);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels pending retries when unmounted', async () => {
+    vi.useFakeTimers();
+    pingAddressMock.mockResolvedValue({ reachable: false, latencyMs: 1, timestamp: 0 });
+    const view = render(App);
+    try {
+      await vi.advanceTimersByTimeAsync(1);
+      expect(pingAddressMock).toHaveBeenCalledTimes(1);
+      view.unmount();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(pingAddressMock).toHaveBeenCalledTimes(1);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it('debounces auto-ping when base URL changes to a valid URL', async () => {
@@ -424,7 +469,7 @@ describe('controller', () => {
     });
     render(App);
 
-    await screen.findByText('Reachable');
+    await screen.findByText('Up');
 
     const baseUrlInput = screen.getByLabelText('Base URL');
     await fireEvent.input(baseUrlInput, { target: { value: 'http://localhost:3000' } });
@@ -443,13 +488,13 @@ describe('controller', () => {
     });
     render(App);
 
-    await screen.findByText('Reachable');
+    await screen.findByText('Up');
     pingAddressMock.mockClear();
 
     const baseUrlInput = screen.getByLabelText('Base URL');
     await fireEvent.input(baseUrlInput, { target: { value: 'https://example.com' } });
 
-    expect(screen.queryByText('Reachable')).toBeNull();
+    expect(screen.queryByText('Up')).toBeNull();
     expect(screen.queryByText('Checking connection…')).toBeNull();
     expect(pingAddressMock).not.toHaveBeenCalled();
   });

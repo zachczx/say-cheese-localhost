@@ -16,6 +16,7 @@
   import IconCamera from '~icons/lucide/camera';
   import IconDownload from '~icons/lucide/download';
   import IconInfo from '~icons/lucide/info';
+  import IconRefresh from '~icons/lucide/refresh-cw';
 
   interface ShotState {
     status: ShotStatus;
@@ -231,6 +232,7 @@
   }
 
   async function runPing(): Promise<void> {
+    clearTimeout(pingDebounceTimer);
     if (running || !isBaseUrlValid()) return;
     pingAbortController?.abort();
     const currentAbort = new AbortController();
@@ -241,6 +243,7 @@
       const result = await pingAddress(targetUrl, { signal: currentAbort.signal });
       if (!currentAbort.signal.aborted && baseUrl === targetUrl) {
         pingResult = result;
+        if (result && !result.reachable) scheduleAutoPing(30_000);
       }
     } finally {
       if (pingAbortController === currentAbort) {
@@ -396,6 +399,7 @@
       abortController = undefined;
       manualShot = undefined;
       chooseManual = undefined;
+      scheduleAutoPing(0);
     }
   }
 
@@ -605,24 +609,36 @@
             </div>
           {:else if pingResult}
             <div
-              class="ping-status {pingResult.reachable
-                ? 'ping-status-success'
-                : 'ping-status-error'}"
+              class="ping-status"
+              class:ping-status-success={pingResult.reachable}
+              class:ping-status-error={!pingResult.reachable}
               role="status"
               aria-live="polite"
             >
               <span class="ping-dot" aria-hidden="true"></span>
               {#if pingResult.reachable}
                 <span class="ping-message">
-                  <strong>Reachable</strong> · {pingResult.latencyMs}ms{pingResult.status
+                  <strong>Up</strong> · {pingResult.latencyMs}ms{pingResult.status
                     ? ` (HTTP ${pingResult.status})`
                     : ''}
                 </span>
               {:else}
                 <span class="ping-message">
-                  <strong>Unreachable</strong> · {pingResult.error ?? 'Connection refused'}
+                  <strong>Down</strong> · {pingResult.error ?? 'Connection refused'}
+                  {#if !running}
+                    · Retrying every 30 seconds.{/if}
                 </span>
               {/if}
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm btn-square"
+                aria-label={pingResult.reachable ? 'Check again' : 'Retry now'}
+                title={pingResult.reachable ? 'Check again' : 'Retry now'}
+                disabled={!ready || running}
+                onclick={() => void runPing()}
+              >
+                <IconRefresh aria-hidden="true" />
+              </button>
             </div>
           {/if}
           <p class="field-help" id="base-url-help">
