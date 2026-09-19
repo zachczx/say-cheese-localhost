@@ -7,6 +7,11 @@ interface RuntimeResult<T> {
   exceptionDetails?: { text?: string; exception?: { description?: string } };
 }
 
+export interface ScrollPosition {
+  x: number;
+  y: number;
+}
+
 export class NetworkQuietTracker {
   #pending = new Map<string, string>();
   #lastActivity = Date.now();
@@ -172,9 +177,11 @@ export async function prepareDocument(
   session: DebuggerSession,
   signal?: AbortSignal,
   preserveFraming = false,
-): Promise<void> {
+  sweepDocument = !preserveFraming,
+  requireCompleteSweep = false,
+): Promise<ScrollPosition | undefined> {
   throwIfAborted(signal);
-  await evaluate(
+  const originalScroll = await evaluate<ScrollPosition | null>(
     session,
     `(async () => {
       const id = 'say-cheese-localhost-capture-style';
@@ -183,30 +190,63 @@ export async function prepareDocument(
       style.id = id;
       style.textContent = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important;scrollbar-width:none!important}::-webkit-scrollbar{width:0!important;height:0!important}';
       document.head.append(style);
-      if (${preserveFraming}) return true;
-      window.focus();
+      const originalScroll = { x: scrollX, y: scrollY };
+      if (!${sweepDocument}) return null;
+      if (!${preserveFraming}) window.focus();
       window.scrollTo(0, 0);
-      document.documentElement.style.zoom = '1';
 
       const nextFrame = () => new Promise((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(resolve))
       );
       const step = Math.max(240, Math.floor(innerHeight * 0.8));
+      const requireCompleteSweep = ${requireCompleteSweep};
+      const startedAt = performance.now();
       let y = 0;
-      for (let index = 0; index < 24; index += 1) {
+      let stableBottomChecks = 0;
+      let reachedStableBottom = false;
+      const maxSteps = requireCompleteSweep ? 400 : 24;
+      for (let index = 0; index < maxSteps && performance.now() - startedAt < 10_000; index += 1) {
         const maxY = Math.max(0, document.documentElement.scrollHeight - innerHeight);
-        if (y >= maxY) break;
-        y = Math.min(maxY, y + step);
-        window.scrollTo(0, y);
+        if (y < maxY) {
+          y = Math.min(maxY, y + step);
+          stableBottomChecks = 0;
+          window.scrollTo(0, y);
+          await nextFrame();
+          continue;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, requireCompleteSweep ? 50 : 0));
         await nextFrame();
+        const nextMaxY = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+        if (nextMaxY <= maxY) {
+          stableBottomChecks += 1;
+          if (!requireCompleteSweep || stableBottomChecks >= 3) {
+            reachedStableBottom = true;
+            break;
+          }
+        } else {
+          stableBottomChecks = 0;
+        }
+      }
+
+      if (requireCompleteSweep && !reachedStableBottom) {
+        throw new Error('The document kept growing or was too tall to sweep completely.');
       }
 
       window.scrollTo(0, 0);
       await nextFrame();
-      return true;
+      return ${preserveFraming} ? originalScroll : null;
     })()`,
     true,
   );
+  return originalScroll ?? undefined;
+}
+
+export async function restoreDocumentScroll(
+  session: DebuggerSession,
+  position: ScrollPosition,
+): Promise<void> {
+  await evaluate(session, `window.scrollTo(${position.x}, ${position.y})`);
 }
 
 export async function waitForDocumentAssets(

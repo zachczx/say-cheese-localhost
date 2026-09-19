@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DebuggerSession } from '../src/capture/debugger';
-import { prepareDocument, waitForDocumentAssets } from '../src/capture/readiness';
+import {
+  prepareDocument,
+  restoreDocumentScroll,
+  waitForDocumentAssets,
+} from '../src/capture/readiness';
 
 const session = {
   send: async (_method: string, params: { expression: string }) => {
@@ -106,4 +110,34 @@ it('preserves manually prepared scroll, zoom, and focus', async () => {
   expect(focus).not.toHaveBeenCalled();
   expect(document.documentElement.style.zoom).toBe('1.25');
   expect(document.querySelector('style')?.textContent).toContain('caret-color:transparent');
+});
+
+it('sweeps a long full page from the top and restores manual framing afterward', async () => {
+  let scrollX = 12;
+  let scrollY = 640;
+  Object.defineProperty(window, 'scrollX', { get: () => scrollX, configurable: true });
+  Object.defineProperty(window, 'scrollY', { get: () => scrollY, configurable: true });
+  Object.defineProperty(document.documentElement, 'scrollHeight', {
+    value: 50_000,
+    configurable: true,
+  });
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    callback(0);
+    return 1;
+  });
+  const scroll = vi.spyOn(window, 'scrollTo').mockImplementation((x, y) => {
+    scrollX = Number(x);
+    scrollY = Number(y);
+  });
+  const focus = vi.spyOn(window, 'focus').mockImplementation(() => {});
+
+  const originalScroll = await prepareDocument(session, undefined, true, true, true);
+
+  expect(scroll.mock.calls.some(([, y]) => Number(y) > window.innerHeight * 24)).toBe(true);
+  expect(scroll).toHaveBeenLastCalledWith(0, 0);
+  expect(originalScroll).toEqual({ x: 12, y: 640 });
+  expect(focus).not.toHaveBeenCalled();
+
+  await restoreDocumentScroll(session, originalScroll!);
+  expect(scroll).toHaveBeenLastCalledWith(12, 640);
 });

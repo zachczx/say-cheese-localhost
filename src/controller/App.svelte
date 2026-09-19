@@ -7,6 +7,12 @@
   import type { CaptureProfile, Shot } from '../profiles/schema';
   import { VIEWPORTS } from '../profiles/viewports';
   import { loadPreferences, savePreferences, type Preferences } from '../storage/preferences';
+  import {
+    DEFAULT_PAGE_ZOOM_PERCENT,
+    MAX_PAGE_ZOOM_PERCENT,
+    MIN_PAGE_ZOOM_PERCENT,
+    normalizePageZoomPercent,
+  } from '../capture/zoom';
   import IconCamera from '~icons/lucide/camera';
   import IconDownload from '~icons/lucide/download';
   import IconInfo from '~icons/lucide/info';
@@ -41,9 +47,14 @@
   let pingAbortController: AbortController | undefined;
   let pingDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let viewportId = $state(initialProfile.defaultViewport);
+  let pageZoomPercent = $state(DEFAULT_PAGE_ZOOM_PERCENT);
+  let pageZoomInput = $state(String(DEFAULT_PAGE_ZOOM_PERCENT));
+  let pageZoomInvalid = $state(false);
+  let pageZoomError = $state('');
   let continueOnError = $state(true);
   let retainWindow = $state(false);
   let captureBeyondViewport = $state(false);
+  let fullPageCapture = $state(false);
   let selectedIds = $state(defaultShotIds(initialProfile));
   let shotStates = $state<Record<string, ShotState>>(createShotStates(initialProfile));
   let preferences: Preferences | undefined;
@@ -134,6 +145,8 @@
       continueOnError: stored.continueOnError ?? true,
       retainWindowAfterFailure: stored.retainWindowAfterFailure ?? false,
       captureBeyondViewport: stored.captureBeyondViewport ?? false,
+      fullPageCapture: stored.fullPageCapture ?? false,
+      pageZoomPercent: normalizePageZoomPercent(stored.pageZoomPercent),
     };
     preferences = loadedPreferences;
 
@@ -147,6 +160,11 @@
     continueOnError = loadedPreferences.continueOnError;
     retainWindow = loadedPreferences.retainWindowAfterFailure;
     captureBeyondViewport = loadedPreferences.captureBeyondViewport;
+    fullPageCapture = loadedPreferences.fullPageCapture;
+    pageZoomPercent = loadedPreferences.pageZoomPercent;
+    pageZoomInput = String(loadedPreferences.pageZoomPercent);
+    pageZoomInvalid = false;
+    pageZoomError = '';
     selectedIds =
       loadedPreferences.selectedShots[storedProfile.id] ?? defaultShotIds(storedProfile);
     resetShotStates();
@@ -238,6 +256,13 @@
     void persist();
   }
 
+  function updatePageZoom(value: string): void {
+    pageZoomInput = value;
+    if (!validatePageZoom(false) || !preferences) return;
+    preferences.pageZoomPercent = pageZoomPercent;
+    void persist();
+  }
+
   function updateContinueOnError(value: boolean): void {
     continueOnError = value;
     if (!preferences) return;
@@ -256,6 +281,13 @@
     captureBeyondViewport = value;
     if (!preferences) return;
     preferences.captureBeyondViewport = value;
+    void persist();
+  }
+
+  function updateFullPageCapture(value: boolean): void {
+    fullPageCapture = value;
+    if (!preferences) return;
+    preferences.fullPageCapture = value;
     void persist();
   }
 
@@ -285,7 +317,7 @@
   }
 
   async function startCapture(shots: Shot[]): Promise<void> {
-    if (running || shots.length === 0 || !validateBaseUrl(true)) return;
+    if (running || shots.length === 0 || !validateBaseUrl(true) || !validatePageZoom(true)) return;
     lastRunShotIds = shots.map((shot) => shot.id);
     for (const shot of shots) {
       shotStates[shot.id] = { status: 'pending' };
@@ -313,6 +345,8 @@
         continueOnError,
         retainWindowAfterFailure: retainWindow,
         captureBeyondViewport,
+        fullPage: fullPageCapture,
+        pageZoomPercent,
         signal: abortController.signal,
         onManualReady: manual ? awaitManualCapture : undefined,
         onWarnings: (value) => {
@@ -420,6 +454,26 @@
       baseUrlError = showMessage && error instanceof Error ? error.message : '';
       return false;
     }
+  }
+
+  function validatePageZoom(showMessage: boolean): boolean {
+    const value = Number(pageZoomInput);
+    if (
+      pageZoomInput.trim() === '' ||
+      !Number.isFinite(value) ||
+      value < MIN_PAGE_ZOOM_PERCENT ||
+      value > MAX_PAGE_ZOOM_PERCENT
+    ) {
+      pageZoomInvalid = true;
+      pageZoomError = showMessage
+        ? `Enter a zoom from ${MIN_PAGE_ZOOM_PERCENT}% to ${MAX_PAGE_ZOOM_PERCENT}%.`
+        : '';
+      return false;
+    }
+    pageZoomPercent = value;
+    pageZoomInvalid = false;
+    pageZoomError = '';
+    return true;
   }
 
   function selectedShots(): Shot[] {
@@ -593,9 +647,37 @@
             {/each}
           </select>
           <p class="field-help" id="viewport-output">
-            {viewport.width * viewport.deviceScaleFactor} × {viewport.height *
-              viewport.deviceScaleFactor} output at {viewport.deviceScaleFactor}× DPR.
+            {#if fullPageCapture}
+              {viewport.width * viewport.deviceScaleFactor}px wide at {viewport.deviceScaleFactor}×
+              DPR; height follows the document.
+            {:else}
+              {viewport.width * viewport.deviceScaleFactor} × {viewport.height *
+                viewport.deviceScaleFactor} output at {viewport.deviceScaleFactor}× DPR.
+            {/if}
           </p>
+        </div>
+
+        <div class="field-group">
+          <label for="page-zoom">Browser zoom (%)</label>
+          <input
+            class="input input-bordered w-full"
+            id="page-zoom"
+            type="number"
+            inputmode="decimal"
+            min={MIN_PAGE_ZOOM_PERCENT}
+            max={MAX_PAGE_ZOOM_PERCENT}
+            step="5"
+            value={pageZoomInput}
+            disabled={!ready || running}
+            aria-invalid={pageZoomInvalid ? 'true' : undefined}
+            aria-describedby="page-zoom-help page-zoom-error"
+            oninput={(event) => updatePageZoom(event.currentTarget.value)}
+            onblur={() => validatePageZoom(true)}
+          />
+          <p class="field-help" id="page-zoom-help">
+            Uses native tab zoom, including exact values such as 220%.
+          </p>
+          <p class="field-error" id="page-zoom-error" aria-live="polite">{pageZoomError}</p>
         </div>
       </div>
 
@@ -618,13 +700,27 @@
           <input
             class="checkbox checkbox-sm checkbox-primary"
             type="checkbox"
-            checked={captureBeyondViewport}
+            checked={fullPageCapture}
             disabled={!ready || running}
+            onchange={(event) => updateFullPageCapture(event.currentTarget.checked)}
+          />
+          <span
+            ><strong>Capture full page</strong><small
+              >Load the complete document and save one continuous image.</small
+            ></span
+          >
+        </label>
+        <label class="check-row">
+          <input
+            class="checkbox checkbox-sm checkbox-primary"
+            type="checkbox"
+            checked={fullPageCapture || captureBeyondViewport}
+            disabled={!ready || running || fullPageCapture}
             onchange={(event) => updateCaptureBeyondViewport(event.currentTarget.checked)}
           />
           <span
             ><strong>Capture beyond viewport</strong><small
-              >Allow layout expansion beyond viewport bounds. Turn off to preserve fixed bars.</small
+              >Allow layout expansion beyond viewport bounds. Full-page capture always enables this.</small
             ></span
           >
         </label>
@@ -702,21 +798,27 @@
         <div class="manual-preparation" aria-live="polite">
           <strong>{manualShot.label}</strong>
           <p>
-            {manualShot.preparation ?? 'Arrange the capture window, then capture the current view.'}
+            {manualShot.preparation ??
+              (fullPageCapture
+                ? 'Arrange the page content, then capture the complete document.'
+                : 'Arrange the capture window, then capture the current view.')}
           </p>
           <p>
             {manualError && manualSaved
               ? 'An earlier image was saved, but the latest attempt failed.'
               : manualSaved
                 ? 'Image saved. You can retake it or move on.'
-                : 'Navigate and scroll freely. Capture keeps your current framing.'}
+                : fullPageCapture
+                  ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
+                  : 'Navigate and scroll freely. Capture keeps your current framing.'}
           </p>
           {#if manualError}<p role="alert">{manualError} Correct the page and retry here.</p>{/if}
           <div class="capture-actions">
             <button
               class="primary-button btn btn-primary"
               type="button"
-              onclick={() => chooseManual?.('capture')}>Capture current view</button
+              onclick={() => chooseManual?.('capture')}
+              >{fullPageCapture ? 'Capture full page' : 'Capture current view'}</button
             >
             <button
               class="quiet-button btn btn-ghost"

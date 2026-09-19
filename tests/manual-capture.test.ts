@@ -6,9 +6,12 @@ import { PROFILES } from '../src/profiles';
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   prepare: vi.fn(),
+  restoreScroll: vi.fn(),
   capture: vi.fn(),
   download: vi.fn(),
   waitDownload: vi.fn(),
+  waitAssets: vi.fn(),
+  applyZoom: vi.fn(),
   detach: vi.fn(),
   send: vi.fn(),
   remove: vi.fn(),
@@ -31,7 +34,8 @@ vi.mock('../src/capture/navigation', () => ({ navigateAndWait: mocks.navigate })
 vi.mock('../src/capture/readiness', () => ({
   evaluate: vi.fn(async () => 'http://localhost:5173/fixture/?state=manually-opened'),
   prepareDocument: mocks.prepare,
-  waitForDocumentAssets: vi.fn(),
+  restoreDocumentScroll: mocks.restoreScroll,
+  waitForDocumentAssets: mocks.waitAssets,
   waitForReadyConditions: vi.fn(),
   NetworkQuietTracker: class {
     start() {}
@@ -45,6 +49,7 @@ vi.mock('../src/capture/screenshot', () => ({
   downloadScreenshot: mocks.download,
   waitForDownload: mocks.waitDownload,
 }));
+vi.mock('../src/capture/zoom', () => ({ applyPageZoom: mocks.applyZoom }));
 
 function options(): CaptureJobOptions {
   return {
@@ -54,6 +59,7 @@ function options(): CaptureJobOptions {
     shots: [PROFILES[0]!.shots[0]!],
     continueOnError: true,
     retainWindowAfterFailure: false,
+    pageZoomPercent: 220,
   };
 }
 
@@ -68,6 +74,10 @@ describe('manual capture lifecycle', () => {
     mocks.capture.mockResolvedValue('data:image/webp;base64,example');
     mocks.download.mockResolvedValue(1);
     mocks.waitDownload.mockResolvedValue(undefined);
+    mocks.waitAssets.mockResolvedValue(undefined);
+    mocks.applyZoom.mockResolvedValue(undefined);
+    mocks.prepare.mockResolvedValue(undefined);
+    mocks.restoreScroll.mockResolvedValue(undefined);
     vi.stubGlobal('chrome', {
       windows: {
         create: vi.fn(async () => ({ id: 1, tabs: [{ id: 2 }] })),
@@ -89,9 +99,67 @@ describe('manual capture lifecycle', () => {
     expect(result.failures).toEqual([]);
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledTimes(2);
+    expect(mocks.applyZoom).toHaveBeenCalledWith(2, 220);
     expect(mocks.prepare.mock.calls.every((call) => call[2] === true)).toBe(true);
     expect(mocks.detach).toHaveBeenCalledOnce();
     expect(mocks.remove).toHaveBeenCalledOnce();
+  });
+
+  it('sweeps and captures the complete document when full-page mode is selected', async () => {
+    const ready = vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next');
+    mocks.prepare.mockResolvedValueOnce({ x: 12, y: 640 });
+    await runCaptureJob({ ...options(), fullPage: true, onManualReady: ready });
+
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      true,
+      true,
+      true,
+    );
+    expect(mocks.waitAssets).toHaveBeenCalledWith(expect.anything(), expect.anything(), 15_000, {
+      mode: 'full-page',
+    });
+    expect(mocks.capture).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      captureBeyondViewport: undefined,
+      fullPage: true,
+    });
+    expect(mocks.restoreScroll).toHaveBeenCalledWith(expect.anything(), { x: 12, y: 640 });
+    expect(mocks.capture.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.restoreScroll.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.restoreScroll.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.download.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('restores manual framing when a full-page screenshot fails', async () => {
+    mocks.prepare.mockResolvedValueOnce({ x: 12, y: 640 });
+    mocks.capture.mockRejectedValueOnce(new Error('Screenshot failed'));
+    const ready = vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next');
+
+    const result = await runCaptureJob({ ...options(), fullPage: true, onManualReady: ready });
+
+    expect(result.failures[0]?.message).toContain('Screenshot failed');
+    expect(mocks.restoreScroll).toHaveBeenCalledWith(expect.anything(), { x: 12, y: 640 });
+  });
+
+  it('re-sweeps an automated full-page shot after profile actions', async () => {
+    await runCaptureJob({ ...options(), fullPage: true });
+
+    expect(mocks.prepare).toHaveBeenNthCalledWith(1, expect.anything(), expect.anything());
+    expect(mocks.prepare).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.anything(),
+      false,
+      true,
+      true,
+    );
+    expect(mocks.capture).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      captureBeyondViewport: undefined,
+      fullPage: true,
+    });
   });
 
   it('does not report a failed download as saved and retries in place', async () => {

@@ -83,9 +83,11 @@ Bundled replacement assets belong under `public/profiles/<profile>/assets/`; Vit
 
 ## Capture lifecycle
 
-Every job creates a dedicated Chrome window, applies viewport and timezone emulation, and processes shots in order. **Prepare each shot manually** is on by default. Navigate, expand sections, and scroll in the capture window, then return to the controller and choose **Capture current view**. Retakes preserve that view. Human preparation has no deadline; navigation and capture operations have bounded deadlines. Stop or closing the target ends the session and cleans up the debugger.
+Every job creates a dedicated Chrome window, applies viewport, native tab zoom, and timezone emulation, and processes shots in order. Native zoom accepts exact values such as 220% even when the browser's zoom menu skips them. **Prepare each shot manually** is on by default. Navigate, expand sections, and scroll in the capture window, then return to the controller and choose **Capture current view**. Retakes preserve that view. Human preparation has no deadline; navigation and capture operations have bounded deadlines. Stop or closing the target ends the session and cleans up the debugger.
 
 Turn off manual preparation to use the existing batch route/actions flow. Only batch preparation sweeps the document and resets scroll. Manual capture checks images in the capture area without moving the page. Failed images block saving; page exceptions and failed local API requests appear as warnings for human review. A saved image still needs visual inspection.
+
+Enable **Capture full page** to sweep lazy content, restore the prepared scroll position, and capture the complete document as one continuous WebP. Full-page output keeps the selected viewport width and has a variable height based on the rendered document.
 
 By default, a completed or stopped job closes its capture window. Users may retain the window after a failure for inspection. Debugger detachment and emulation cleanup still occur before the window is retained.
 

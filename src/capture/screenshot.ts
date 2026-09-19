@@ -10,6 +10,8 @@ interface ScreenshotResult {
 
 interface LayoutMetrics {
   cssContentSize: { width: number; height: number };
+  cssLayoutViewport: { clientWidth: number; clientHeight: number };
+  cssVisualViewport: { zoom: number };
 }
 
 interface ElementRect {
@@ -21,6 +23,7 @@ interface ElementRect {
 
 export interface CaptureShotOptions {
   captureBeyondViewport?: boolean;
+  fullPage?: boolean;
 }
 
 export async function captureShot(
@@ -28,9 +31,11 @@ export async function captureShot(
   shot: Shot,
   options?: CaptureShotOptions,
 ): Promise<string> {
-  const mode = shot.capture?.mode ?? 'viewport';
+  const mode = options?.fullPage ? 'full-page' : (shot.capture?.mode ?? 'viewport');
   const captureBeyondViewport =
-    shot.capture?.captureBeyondViewport ?? options?.captureBeyondViewport ?? false;
+    mode === 'full-page'
+      ? true
+      : (shot.capture?.captureBeyondViewport ?? options?.captureBeyondViewport ?? false);
 
   const params: Record<string, unknown> = {
     format: 'webp',
@@ -61,7 +66,14 @@ export async function captureShot(
 
   if (mode === 'full-page') {
     const metrics = await session.send<LayoutMetrics>('Page.getLayoutMetrics');
-    params.clip = { x: 0, y: 0, ...metrics.cssContentSize, scale: 1 };
+    const pageZoom = metrics.cssVisualViewport.zoom;
+    params.clip = {
+      x: 0,
+      y: 0,
+      width: Math.round(metrics.cssLayoutViewport.clientWidth * pageZoom),
+      height: Math.ceil(metrics.cssContentSize.height * pageZoom),
+      scale: 1,
+    };
   }
 
   if (mode === 'element') {

@@ -6,6 +6,8 @@ export interface Preferences {
   continueOnError: boolean;
   retainWindowAfterFailure: boolean;
   captureBeyondViewport: boolean;
+  fullPageCapture: boolean;
+  pageZoomPercent: number;
 }
 
 const STORAGE_KEY = 'say-cheese-localhost.preferences.v1';

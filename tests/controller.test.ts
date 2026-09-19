@@ -153,6 +153,8 @@ describe('controller', () => {
     expect(options.shots.map((shot) => shot.id)).toEqual(['fixture-overview', 'fixture-details']);
     expect(options.continueOnError).toBe(true);
     expect(options.captureBeyondViewport).toBe(false);
+    expect(options.fullPage).toBe(false);
+    expect(options.pageZoomPercent).toBe(100);
     expect(screen.getByText('1 / 2')).toBeTruthy();
     expect(screen.getByText('Fixture overview').closest('tr')?.dataset.status).toBe('capturing');
 
@@ -295,6 +297,73 @@ describe('controller', () => {
       expect.objectContaining({
         'say-cheese-localhost.preferences.v1': expect.objectContaining({
           captureBeyondViewport: true,
+        }),
+      }),
+    );
+  });
+
+  it('passes through and persists an exact page zoom percentage', async () => {
+    runCaptureJobMock.mockResolvedValueOnce({
+      completed: 2,
+      failures: [],
+      stopped: false,
+      windowRetained: false,
+    });
+    render(App);
+
+    const input = (await screen.findByLabelText('Browser zoom (%)')) as HTMLInputElement;
+    expect(input.value).toBe('100');
+    await fireEvent.input(input, { target: { value: '220' } });
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+
+    expect(runCaptureJobMock.mock.calls[0]?.[0].pageZoomPercent).toBe(220);
+    expect(storageSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'say-cheese-localhost.preferences.v1': expect.objectContaining({
+          pageZoomPercent: 220,
+        }),
+      }),
+    );
+  });
+
+  it('rejects a page zoom outside the supported range', async () => {
+    render(App);
+    const input = (await screen.findByLabelText('Browser zoom (%)')) as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: '600' } });
+    await fireEvent.blur(input);
+    expect(screen.getByText('Enter a zoom from 25% to 500%.')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 2 shots' }));
+    expect(runCaptureJobMock).not.toHaveBeenCalled();
+  });
+
+  it('persists full-page mode and forces capture beyond the viewport', async () => {
+    runCaptureJobMock.mockResolvedValueOnce({
+      completed: 2,
+      failures: [],
+      stopped: false,
+      windowRetained: false,
+    });
+    render(App);
+
+    const fullPage = (await screen.findByRole('checkbox', {
+      name: /Capture full page/,
+    })) as HTMLInputElement;
+    const beyondViewport = screen.getByRole('checkbox', {
+      name: /Capture beyond viewport/,
+    }) as HTMLInputElement;
+    await fireEvent.click(fullPage);
+
+    expect(fullPage.checked).toBe(true);
+    expect(beyondViewport.checked).toBe(true);
+    expect(beyondViewport.disabled).toBe(true);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+
+    expect(runCaptureJobMock.mock.calls[0]?.[0].fullPage).toBe(true);
+    expect(storageSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'say-cheese-localhost.preferences.v1': expect.objectContaining({
+          fullPageCapture: true,
         }),
       }),
     );

@@ -69,10 +69,14 @@ describe('captureShot', () => {
   });
 
   describe('full-page mode', () => {
-    it('defaults captureBeyondViewport to false unless selected in options', async () => {
+    it('always captures beyond the viewport for a full-page shot', async () => {
       const send = vi.fn(async (method: string) => {
         if (method === 'Page.getLayoutMetrics') {
-          return { cssContentSize: { width: 390, height: 1200 } };
+          return {
+            cssContentSize: { width: 640, height: 1200 },
+            cssLayoutViewport: { clientWidth: 195, clientHeight: 422 },
+            cssVisualViewport: { zoom: 2 },
+          };
         }
         if (method === 'Page.captureScreenshot') {
           return { data: 'full-page-data' };
@@ -88,26 +92,28 @@ describe('captureShot', () => {
         format: 'webp',
         quality: 100,
         fromSurface: true,
-        captureBeyondViewport: false,
-        clip: { x: 0, y: 0, width: 390, height: 1200, scale: 1 },
+        captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width: 390, height: 2400, scale: 1 },
       });
     });
 
-    it('enables captureBeyondViewport when selected in options', async () => {
+    it('allows the run-level full-page option to override a viewport shot', async () => {
       const send = vi.fn(async (method: string) => {
         if (method === 'Page.getLayoutMetrics') {
-          return { cssContentSize: { width: 390, height: 1200 } };
+          return {
+            cssContentSize: { width: 640, height: 1200 },
+            cssLayoutViewport: { clientWidth: 390, clientHeight: 844 },
+            cssVisualViewport: { zoom: 1 },
+          };
         }
         if (method === 'Page.captureScreenshot') {
           return { data: 'full-page-data' };
         }
         return { result: {} };
       });
-      const result = await captureShot(
-        { send } as unknown as DebuggerSession,
-        { ...shot, capture: { mode: 'full-page' } },
-        { captureBeyondViewport: true },
-      );
+      const result = await captureShot({ send } as unknown as DebuggerSession, shot, {
+        fullPage: true,
+      });
       expect(result).toBe('data:image/webp;base64,full-page-data');
       expect(send).toHaveBeenCalledWith('Page.captureScreenshot', {
         format: 'webp',

@@ -8,11 +8,14 @@ import {
   evaluate,
   NetworkQuietTracker,
   prepareDocument,
+  restoreDocumentScroll,
+  type ScrollPosition,
   waitForDocumentAssets,
   waitForReadyConditions,
 } from './readiness';
 import { RequestReplacementInterceptor } from './requests';
 import { captureShot, downloadScreenshot, waitForDownload } from './screenshot';
+import { applyPageZoom } from './zoom';
 
 export type ShotStatus =
   | 'pending'
@@ -46,6 +49,8 @@ export interface CaptureJobOptions {
   continueOnError: boolean;
   retainWindowAfterFailure: boolean;
   captureBeyondViewport?: boolean;
+  fullPage?: boolean;
+  pageZoomPercent?: number;
   signal?: AbortSignal;
   onShotUpdate?: (update: ShotUpdate) => void;
   onManualReady?: (shot: Shot, signal: AbortSignal) => Promise<'capture' | 'next'>;
@@ -95,7 +100,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     const tabId = captureWindow.tabs?.[0]?.id;
     if (tabId === undefined) throw new Error('Chrome did not create a capture tab.');
 
-    await chrome.tabs.setZoom(tabId, 1);
+    await applyPageZoom(tabId);
     session = new DebuggerSession(tabId);
     await session.attach();
     session.onDetach((reason) => {
@@ -169,6 +174,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     for (const shot of options.shots) {
       throwIfAborted(jobController.signal);
       let currentUrl = new URL(shot.path, baseUrl).href;
+      const fullPage = options.fullPage || shot.capture?.mode === 'full-page';
       pageErrors.length = 0;
       requests.clear();
       options.onWarnings?.([]);
@@ -185,6 +191,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
             if (navigation.status !== undefined && navigation.status >= 400) {
               throw new Error(`Navigation returned HTTP ${navigation.status}.`);
             }
+            await applyPageZoom(tabId, options.pageZoomPercent);
             if (!options.onManualReady) {
               update(options, shot, 'preparing', currentUrl);
               await tracker?.waitForQuiet(signal);
@@ -215,41 +222,69 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
           try {
             await runWithTimeout(
               async (signal) => {
-                if (captureWindowId !== undefined)
-                  await chrome.windows.update(captureWindowId, { focused: true });
-                await (session as DebuggerSession).send('Page.bringToFront');
-                currentUrl = await evaluate<string>(session as DebuggerSession, 'location.href');
-                if (new URL(normalizeLocalBaseUrl(currentUrl)).origin !== new URL(baseUrl).origin) {
-                  throw new Error(
-                    'The capture window left the selected localhost origin. Return to the application and retry.',
+                let preparedScroll: ScrollPosition | undefined;
+                try {
+                  if (captureWindowId !== undefined)
+                    await chrome.windows.update(captureWindowId, { focused: true });
+                  await (session as DebuggerSession).send('Page.bringToFront');
+                  currentUrl = await evaluate<string>(session as DebuggerSession, 'location.href');
+                  if (
+                    new URL(normalizeLocalBaseUrl(currentUrl)).origin !== new URL(baseUrl).origin
+                  ) {
+                    throw new Error(
+                      'The capture window left the selected localhost origin. Return to the application and retry.',
+                    );
+                  }
+                  update(options, shot, 'preparing', currentUrl);
+                  if (options.onManualReady) {
+                    await applyPageZoom(tabId, options.pageZoomPercent);
+                    preparedScroll = await prepareDocument(
+                      session as DebuggerSession,
+                      signal,
+                      true,
+                      fullPage,
+                      fullPage,
+                    );
+                  } else {
+                    await tracker?.waitForQuiet(signal);
+                    if (fullPage) {
+                      await prepareDocument(session as DebuggerSession, signal, false, true, true);
+                    }
+                  }
+                  await waitForDocumentAssets(
+                    session as DebuggerSession,
+                    signal,
+                    15_000,
+                    fullPage ? { mode: 'full-page' } : shot.capture,
                   );
+                  await interceptor?.waitForIdle(signal);
+                  if (!options.onManualReady && shot.settleMs) await delay(shot.settleMs, signal);
+                  throwIfAborted(signal);
+                  update(options, shot, 'capturing', currentUrl);
+                  const dataUrl = await captureShot(session as DebuggerSession, shot, {
+                    captureBeyondViewport: options.captureBeyondViewport,
+                    fullPage: options.fullPage,
+                  });
+                  if (preparedScroll) {
+                    await restoreDocumentScroll(session as DebuggerSession, preparedScroll);
+                    preparedScroll = undefined;
+                  }
+                  throwIfAborted(signal);
+                  update(options, shot, 'downloading', currentUrl);
+                  const downloadId = await downloadScreenshot(
+                    dataUrl,
+                    options.profile.outputDirectory,
+                    shot.filename,
+                  );
+                  await waitForDownload(downloadId, signal);
+                  throwIfAborted(signal);
+                } finally {
+                  if (preparedScroll) {
+                    await restoreDocumentScroll(session as DebuggerSession, preparedScroll).catch(
+                      () => undefined,
+                    );
+                  }
                 }
-                update(options, shot, 'preparing', currentUrl);
-                if (options.onManualReady)
-                  await prepareDocument(session as DebuggerSession, signal, true);
-                else await tracker?.waitForQuiet(signal);
-                await waitForDocumentAssets(
-                  session as DebuggerSession,
-                  signal,
-                  15_000,
-                  shot.capture,
-                );
-                await interceptor?.waitForIdle(signal);
-                if (!options.onManualReady && shot.settleMs) await delay(shot.settleMs, signal);
-                throwIfAborted(signal);
-                update(options, shot, 'capturing', currentUrl);
-                const dataUrl = await captureShot(session as DebuggerSession, shot, {
-                  captureBeyondViewport: options.captureBeyondViewport,
-                });
-                throwIfAborted(signal);
-                update(options, shot, 'downloading', currentUrl);
-                const downloadId = await downloadScreenshot(
-                  dataUrl,
-                  options.profile.outputDirectory,
-                  shot.filename,
-                );
-                await waitForDownload(downloadId, signal);
-                throwIfAborted(signal);
               },
               SHOT_TIMEOUT_MS,
               `Shot "${shot.id}" did not finish`,
