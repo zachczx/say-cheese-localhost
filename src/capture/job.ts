@@ -87,6 +87,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   let unexpectedError: unknown;
   let windowRetained: boolean;
   const pageErrors: string[] = [];
+  const reportWarnings = createWarningReporter(options.onWarnings);
 
   try {
     const captureWindow = await chrome.windows.create({
@@ -139,7 +140,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
         requests.delete(requestId);
       }
       if (pageErrors.length > 10) pageErrors.splice(0, pageErrors.length - 10);
-      options.onWarnings?.([...new Set(pageErrors)]);
+      reportWarnings(pageErrors);
     });
 
     await Promise.all([
@@ -177,7 +178,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
       const fullPage = options.fullPage || shot.capture?.mode === 'full-page';
       pageErrors.length = 0;
       requests.clear();
-      options.onWarnings?.([]);
+      reportWarnings([]);
       try {
         await runWithTimeout(
           async (signal) => {
@@ -391,6 +392,23 @@ async function runPreflight(
       throw new Error(`Preflight refused capture: expected ${key}=${String(expectedValue)}.`);
     }
   }
+}
+
+/**
+ * Debugger events arrive hundreds of times per page load. Only notify the
+ * controller when the de-duplicated warning list actually changes.
+ */
+function createWarningReporter(
+  onWarnings?: (warnings: string[]) => void,
+): (warnings: readonly string[]) => void {
+  let previous: string | undefined;
+  return (warnings) => {
+    const unique = [...new Set(warnings)];
+    const key = JSON.stringify(unique);
+    if (key === previous) return;
+    previous = key;
+    onWarnings?.(unique);
+  };
 }
 
 function update(
