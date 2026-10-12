@@ -145,7 +145,6 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
       session.send('Page.enable'),
       session.send('Runtime.enable'),
       session.send('Network.enable'),
-      session.send('Log.enable'),
     ]);
     await session.send('Network.setBypassServiceWorker', { bypass: true });
     await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
