@@ -243,6 +243,27 @@ describe('manual capture lifecycle', () => {
     expect(diagnostic).toContain('/jobs returned HTTP 500');
     expect(diagnostic).not.toContain('private');
   });
+  it('applies profile timeouts to navigation and asset readiness', async () => {
+    const base = options();
+    await runCaptureJob({
+      ...base,
+      profile: { ...base.profile, timeouts: { navigationMs: 20_000, assetsMs: 25_000 } },
+      onManualReady: vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next'),
+    });
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.anything(),
+      20_000,
+    );
+    expect(mocks.waitAssets).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      25_000,
+      undefined,
+    );
+  });
+
   it('reports page warnings only when the list changes', async () => {
     mocks.navigate.mockImplementationOnce(async () => {
       const emit = (method: string, params: Record<string, unknown>) => {

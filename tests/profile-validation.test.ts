@@ -71,6 +71,25 @@ describe('validateProfile', () => {
       ]),
     );
   });
+
+  it('accepts tuned timeouts and rejects unknown, out-of-range, or inconsistent ones', () => {
+    expect(
+      validateProfile(profile({ timeouts: { shotMs: 90_000, assetsMs: 30_000 } }), VIEWPORTS),
+    ).toEqual([]);
+    const invalid = profile({
+      timeouts: { shotMs: 500, navigationMs: 1.5, typo: 1 } as never,
+    });
+    expect(validateProfile(invalid, VIEWPORTS)).toEqual(
+      expect.arrayContaining([
+        'Profile "demo" timeout "shotMs" must be 1000–600000 ms.',
+        'Profile "demo" timeout "navigationMs" must be 1000–600000 ms.',
+        'Profile "demo" has unknown timeout "typo".',
+      ]),
+    );
+    expect(
+      validateProfile(profile({ timeouts: { shotMs: 20_000, navigationMs: 30_000 } }), VIEWPORTS),
+    ).toEqual(['Profile "demo" timeout "navigationMs" exceeds "shotMs".']);
+  });
 });
 
 describe('viewport and route validation', () => {
