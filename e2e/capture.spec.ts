@@ -158,3 +158,22 @@ test('closing the controller mid-run closes its capture window', async ({
   await controller.close();
   await expect.poll(() => capturePages().length, { timeout: 15_000 }).toBe(0);
 });
+
+test('the capture command message captures from the capture window', async ({
+  context,
+  controller,
+}) => {
+  await controller.getByRole('button', { name: 'Open 2 shots' }).click();
+  await controller
+    .getByRole('button', { name: 'Capture current view' })
+    .waitFor({ timeout: 60_000 });
+  // Browser accelerators cannot be pressed through Playwright, so send the
+  // background worker's message the way the command handler does.
+  const [worker] = context.serviceWorkers();
+  await worker!.evaluate(() => chrome.runtime.sendMessage({ type: 'capture-current-view' }));
+  await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
+    timeout: 60_000,
+  });
+  const [card] = await savedPixels(controller, cardX, cardY);
+  expect(isCardWhite(card!)).toBe(true);
+});

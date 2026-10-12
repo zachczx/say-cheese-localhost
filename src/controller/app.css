@@ -825,6 +825,11 @@ kbd {
   color: var(--ink);
 }
 
+.manual-preparation .manual-shortcut {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 .manual-preparation [role='alert'] {
   color: var(--error);
   font-weight: 600;

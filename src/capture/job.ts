@@ -6,6 +6,7 @@ import { DebuggerSession } from './debugger';
 import { applyEmulation, clearEmulation, type ColorScheme } from './emulation';
 import { navigateAndWait } from './navigation';
 import { forgetCaptureWindow, rememberCaptureWindow } from './orphans';
+import { besideController } from './placement';
 import {
   evaluate,
   NetworkQuietTracker,
@@ -109,12 +110,19 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   const reportWarnings = createWarningReporter(options.onWarnings);
 
   try {
+    const controllerWindow = await chrome.windows.getCurrent?.().catch(() => undefined);
     const captureWindow = await chrome.windows.create({
       url: 'about:blank',
       type: 'normal',
       focused: true,
-      width: Math.max(640, options.viewport.width + 80),
-      height: Math.max(640, options.viewport.height + 120),
+      ...besideController(
+        controllerWindow,
+        {
+          width: Math.max(640, options.viewport.width + 80),
+          height: Math.max(640, options.viewport.height + 120),
+        },
+        workArea(),
+      ),
     });
     if (!captureWindow) throw new Error('Chrome did not create a capture window.');
     captureWindowId = captureWindow.id;
@@ -408,6 +416,17 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   if (unexpectedError !== undefined) throw unexpectedError;
 
   return { completed, skipped, failures, stopped, windowRetained };
+}
+
+function workArea(): { left: number; top: number; width: number; height: number } {
+  const area = globalThis.screen as
+    (Screen & { availLeft?: number; availTop?: number }) | undefined;
+  return {
+    left: area?.availLeft ?? 0,
+    top: area?.availTop ?? 0,
+    width: area?.availWidth || 1920,
+    height: area?.availHeight || 1080,
+  };
 }
 
 const MANUAL_SETTLE_QUIET_CAP_MS = 5_000;

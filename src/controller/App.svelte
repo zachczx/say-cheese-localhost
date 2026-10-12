@@ -136,7 +136,24 @@
     void initialize();
   });
 
+  // Alt+Shift+C (or the user's own binding) reaches the controller from the
+  // background worker while the capture window has focus.
+  let captureShortcut = $state('');
+  function handleRuntimeMessage(message: unknown): void {
+    if ((message as { type?: string } | undefined)?.type !== 'capture-current-view') return;
+    if (manualShot) chooseManual?.('capture');
+  }
+  chrome.runtime?.onMessage?.addListener(handleRuntimeMessage);
+  void chrome.commands
+    ?.getAll?.()
+    .then((commands) => {
+      captureShortcut =
+        commands.find((command) => command.name === 'capture-current-view')?.shortcut ?? '';
+    })
+    .catch(() => undefined);
+
   onDestroy(() => {
+    chrome.runtime?.onMessage?.removeListener(handleRuntimeMessage);
     abortController?.abort();
     pingAbortController?.abort();
     clearTimeout(pingDebounceTimer);
@@ -1121,6 +1138,12 @@
                     : 'Navigate and scroll freely. Capture keeps your current framing.'}
             </p>
             {#if manualError}<p role="alert">{manualError} Correct the page and retry here.</p>{/if}
+            {#if captureShortcut}
+              <p class="manual-shortcut">
+                Or press <kbd>{captureShortcut}</kbd> in the capture window to capture without switching
+                back.
+              </p>
+            {/if}
             <div class="capture-actions">
               <button
                 class="primary-button btn btn-primary"
