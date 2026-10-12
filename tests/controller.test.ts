@@ -317,7 +317,7 @@ describe('controller', () => {
     render(App);
 
     const checkbox = (await screen.findByRole('checkbox', {
-      name: /Capture beyond viewport/,
+      name: /Render beyond the viewport/,
     })) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
 
@@ -406,7 +406,7 @@ describe('controller', () => {
       name: /Capture full page/,
     })) as HTMLInputElement;
     const beyondViewport = screen.getByRole('checkbox', {
-      name: /Capture beyond viewport/,
+      name: /Render beyond the viewport/,
     }) as HTMLInputElement;
     await fireEvent.click(fullPage);
 
