@@ -25,6 +25,12 @@ test('batch capture writes iPhone 14 Pro Max images at 1290 × 2796', async ({
   ]);
   const [overview] = await savedPixels(controller, cardX, cardY);
   expect(isCardWhite(overview!)).toBe(true);
+  // Saved images can be reviewed in the controller at their real size.
+  await controller.getByRole('button', { name: 'Preview Fixture details' }).click();
+  const dialog = controller.getByRole('dialog', { name: 'Fixture details' });
+  await expect(dialog).toContainText('demo-02-details.webp · 1290 × 2796');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
   // The dedicated capture window closes after a successful run.
   await expect
     .poll(() => context.pages().filter((page) => page.url().includes('/fixture/')).length)

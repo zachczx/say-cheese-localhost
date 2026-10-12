@@ -58,6 +58,8 @@ export interface CaptureJobOptions {
   onShotUpdate?: (update: ShotUpdate) => void;
   onManualReady?: (shot: Shot, signal: AbortSignal) => Promise<'capture' | 'next'>;
   onWarnings?: (warnings: string[]) => void;
+  /** Receives each image after Chrome finishes writing it to Downloads. */
+  onShotSaved?: (shotId: string, dataUrl: string) => void;
   onProgress?: (completed: number, total: number) => void;
 }
 
@@ -293,6 +295,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   );
                   await waitForDownload(downloadId, signal);
                   throwIfAborted(signal);
+                  options.onShotSaved?.(shot.id, dataUrl);
                 } finally {
                   if (preparedScroll) {
                     await restoreDocumentScroll(session as DebuggerSession, preparedScroll).catch(
