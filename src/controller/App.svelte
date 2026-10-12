@@ -968,9 +968,6 @@
 
       <footer class="capture-footer">
         <p>{footerSummary}</p>
-        <button class="text-button btn btn-ghost btn-sm" type="button" onclick={openDownloads}
-          >Open downloads</button
-        >
       </footer>
     </section>
   </main>

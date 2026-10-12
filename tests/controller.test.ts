@@ -80,6 +80,12 @@ describe('controller', () => {
     });
   });
 
+  it('offers a single Open downloads action', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'Open 2 shots' });
+    expect(screen.getAllByRole('button', { name: 'Open downloads' })).toHaveLength(1);
+  });
+
   it('marks an invalid base URL immediately and explains it after blur', async () => {
     render(App);
 
