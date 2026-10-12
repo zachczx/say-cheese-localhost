@@ -1,3 +1,5 @@
+import type { ColorScheme } from '../capture/emulation';
+
 export interface Preferences {
   profileId: string;
   viewportId: string;
@@ -8,6 +10,7 @@ export interface Preferences {
   captureBeyondViewport: boolean;
   fullPageCapture: boolean;
   manualPreparation: boolean;
+  colorScheme: ColorScheme;
   pageZoomPercent: number;
 }
 

@@ -72,6 +72,13 @@ describe('validateProfile', () => {
     );
   });
 
+  it('accepts IANA timezones and rejects unknown ones', () => {
+    expect(validateProfile(profile({ timezone: 'America/New_York' }), VIEWPORTS)).toEqual([]);
+    expect(validateProfile(profile({ timezone: 'Nowhere/City' }), VIEWPORTS)).toEqual([
+      'Profile "demo" has an unknown timezone "Nowhere/City".',
+    ]);
+  });
+
   it('validates the optional base URL hint', () => {
     expect(validateProfile(profile({ baseUrlHint: 'Start the QA server.' }), VIEWPORTS)).toEqual(
       [],

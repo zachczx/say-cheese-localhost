@@ -24,6 +24,8 @@ export const test = base.extend<ExtensionFixtures>({
       // Playwright would otherwise emulate its own viewport on every page,
       // including the extension's capture window, and fight its emulation.
       viewport: null,
+      // Likewise, let the extension own prefers-color-scheme.
+      colorScheme: null,
       acceptDownloads: true,
       args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
     });
@@ -39,6 +41,8 @@ export const test = base.extend<ExtensionFixtures>({
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/controller/index.html`);
     await page.getByLabel('Base URL').fill(FIXTURE_ORIGIN);
+    // Pin light mode so content checks do not depend on the machine's theme.
+    await page.getByLabel('Color scheme').selectOption('light');
     await use(page);
     if (testInfo.status !== testInfo.expectedStatus) {
       // Keep the controller's last state with the failure; CI uploads test-results/.

@@ -3,7 +3,7 @@ import { resolveTimeouts } from '../profiles/schema';
 import { delay, runWithTimeout, throwIfAborted } from './async';
 import { runActions, createCdpActionDriver } from './actions';
 import { DebuggerSession } from './debugger';
-import { applyEmulation, clearEmulation } from './emulation';
+import { applyEmulation, clearEmulation, type ColorScheme } from './emulation';
 import { navigateAndWait } from './navigation';
 import {
   evaluate,
@@ -54,6 +54,8 @@ export interface CaptureJobOptions {
   captureBeyondViewport?: boolean;
   fullPage?: boolean;
   pageZoomPercent?: number;
+  /** Overrides `prefers-color-scheme` for the capture window. */
+  colorScheme?: ColorScheme;
   signal?: AbortSignal;
   onShotUpdate?: (update: ShotUpdate) => void;
   onManualReady?: (shot: Shot, signal: AbortSignal) => Promise<'capture' | 'next'>;
@@ -154,7 +156,10 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     ]);
     await session.send('Network.setBypassServiceWorker', { bypass: true });
     await session.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
-    await applyEmulation(session, options.viewport);
+    await applyEmulation(session, options.viewport, {
+      timezoneId: options.profile.timezone,
+      colorScheme: options.colorScheme,
+    });
 
     tracker = new NetworkQuietTracker();
     tracker.start(session);

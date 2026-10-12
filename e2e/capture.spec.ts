@@ -99,3 +99,15 @@ test('manual preparation can skip every shot', async ({ controller }) => {
   await expect(controller.getByText('2 shots skipped')).toBeVisible({ timeout: 60_000 });
   expect(await savedImages(controller)).toEqual([]);
 });
+
+test('dark color scheme renders the page in dark mode', async ({ controller }) => {
+  await controller.getByRole('checkbox', { name: /Prepare each shot manually/ }).uncheck();
+  await controller.getByLabel('Color scheme').selectOption('dark');
+  await controller.getByRole('checkbox', { name: 'Select Fixture details' }).uncheck();
+  await controller.getByRole('button', { name: 'Capture 1 shot' }).click();
+
+  await expect(controller.locator(footer)).toContainText('1 image saved', { timeout: 90_000 });
+  // The fixture's dark background is #1d1c19; light mode would be #f3efe4.
+  const [background] = await savedPixels(controller, 215, 900);
+  expect(Math.max(...background!)).toBeLessThan(60);
+});

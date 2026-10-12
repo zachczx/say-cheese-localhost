@@ -470,6 +470,25 @@ describe('controller', () => {
     await waitFor(() => expect(restored.checked).toBe(false));
   });
 
+  it('passes and persists a forced color scheme', async () => {
+    runCaptureJobMock.mockResolvedValueOnce({
+      completed: 2,
+      failures: [],
+      stopped: false,
+      windowRetained: false,
+    });
+    render(App);
+    const scheme = (await screen.findByLabelText('Color scheme')) as HTMLSelectElement;
+    expect(scheme.value).toBe('system');
+    expect(screen.getByText(/Asia\/Singapore time zone/)).toBeTruthy();
+    await fireEvent.change(scheme, { target: { value: 'dark' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 2 shots' }));
+    expect(runCaptureJobMock.mock.calls[0]?.[0].colorScheme).toBe('dark');
+    expect(storageSetMock).toHaveBeenCalledWith({
+      'say-cheese-localhost.preferences.v1': expect.objectContaining({ colorScheme: 'dark' }),
+    });
+  });
+
   it('persists full-page mode and forces capture beyond the viewport', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,
