@@ -113,6 +113,56 @@ describe('controller', () => {
     finish?.();
   });
 
+  it('imports, selects, persists, and removes a JSON profile', async () => {
+    vi.stubGlobal('confirm', () => true);
+    render(App);
+    await screen.findByRole('button', { name: 'Open 2 shots' });
+    const file = new File(
+      [
+        JSON.stringify({
+          id: 'lingo',
+          label: 'Lingo',
+          defaultBaseUrl: 'http://127.0.0.1:5180',
+          outputDirectory: 'say-cheese-localhost/lingo',
+          defaultViewport: 'phone',
+          shots: [
+            { id: 'home', label: 'Home', path: '/', filename: 'home.webp', enabledByDefault: true },
+          ],
+        }),
+      ],
+      'lingo.json',
+      { type: 'application/json' },
+    );
+    await fireEvent.change(screen.getByLabelText('Profile manifest file'), {
+      target: { files: [file] },
+    });
+
+    expect(await screen.findByText('Imported "Lingo".')).toBeTruthy();
+    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('lingo');
+    expect(screen.getByRole('option', { name: 'Lingo (imported)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open 1 shot' })).toBeTruthy();
+    expect(storageSetMock).toHaveBeenCalledWith({
+      'say-cheese-localhost.imported-profiles.v1': [expect.objectContaining({ id: 'lingo' })],
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove imported profile' }));
+    expect(await screen.findByText('Removed "Lingo".')).toBeTruthy();
+    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('local-demo');
+    expect(screen.queryByRole('option', { name: 'Lingo (imported)' })).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('explains why a profile could not be imported', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'Open 2 shots' });
+    const file = new File(['{"id": "cubby"'], 'broken.json', { type: 'application/json' });
+    await fireEvent.change(screen.getByLabelText('Profile manifest file'), {
+      target: { files: [file] },
+    });
+    const alert = await screen.findByText('The profile was not imported:');
+    expect(alert.closest('[role="alert"]')?.textContent).toContain('The file is not valid JSON.');
+  });
+
   it('offers a single Open downloads action', async () => {
     render(App);
     await screen.findByRole('button', { name: 'Open 2 shots' });

@@ -492,6 +492,27 @@ input[type='url'] {
   font-weight: 600;
 }
 
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
+}
+
+.profile-actions .btn {
+  min-height: 28px;
+  font-size: 12px;
+}
+
+.field-error ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.field-error p {
+  margin: 0;
+}
+
 .ping-status {
   display: flex;
   flex-wrap: wrap;

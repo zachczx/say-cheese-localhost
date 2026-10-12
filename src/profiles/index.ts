@@ -1,3 +1,4 @@
+import { sortProfiles } from './imported';
 import type { CaptureProfile } from './schema';
 import { validateProfile } from './schema';
 import { VIEWPORTS } from './viewports';
@@ -27,11 +28,7 @@ export function loadProfiles(sources: Record<string, CaptureProfile>): CapturePr
     return profile;
   });
   if (errors.length > 0) throw new Error(`Invalid capture profiles:\n${errors.join('\n')}`);
-  return profiles.sort(
-    (a, b) =>
-      (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) ||
-      a.label.localeCompare(b.label, 'en-US'),
-  );
+  return sortProfiles(profiles);
 }
 
 export const PROFILES = loadProfiles(manifests);
