@@ -3,6 +3,7 @@ import type { DebuggerSession } from './debugger';
 
 interface NavigationResult {
   errorText?: string;
+  loaderId?: string;
 }
 
 export interface NavigationOutcome {
@@ -19,7 +20,10 @@ export async function navigateAndWait(
     async (timeoutSignal) => {
       let unsubscribe: () => void = () => undefined;
       let removeAbort: () => void = () => undefined;
-      let status: number | undefined;
+      // Redirects change the document URL, so match the final response by the
+      // loader that Page.navigate started rather than by the requested URL.
+      const statusByLoader = new Map<string, number>();
+      let statusForRequestedUrl: number | undefined;
       try {
         const loaded = new Promise<void>((resolve, reject) => {
           unsubscribe = session.onEvent((event) => {
@@ -27,7 +31,11 @@ export async function navigateAndWait(
               const type = event.params.type;
               const response = event.params.response as
                 { url?: string; status?: number } | undefined;
-              if (type === 'Document' && response?.url === url) status = response.status;
+              const loaderId = event.params.loaderId;
+              if (type === 'Document' && typeof response?.status === 'number') {
+                if (typeof loaderId === 'string') statusByLoader.set(loaderId, response.status);
+                if (response.url === url) statusForRequestedUrl = response.status;
+              }
             }
             if (event.method === 'Page.loadEventFired') resolve();
           });
@@ -38,6 +46,10 @@ export async function navigateAndWait(
         const result = await session.send<NavigationResult>('Page.navigate', { url });
         if (result.errorText) throw new Error(`Navigation failed: ${result.errorText}`);
         await loaded;
+        const status =
+          result.loaderId !== undefined
+            ? statusByLoader.get(result.loaderId)
+            : statusForRequestedUrl;
         return { status };
       } finally {
         unsubscribe();
