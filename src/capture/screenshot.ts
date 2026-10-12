@@ -2,7 +2,7 @@ import type { Shot } from '../profiles/schema';
 import { joinDownloadPath } from '../profiles/schema';
 import type { DebuggerSession } from './debugger';
 import { abortError, runWithTimeout } from './async';
-import { evaluate } from './readiness';
+import { evaluate, scrollToScript } from './readiness';
 
 interface ScreenshotResult {
   data: string;
@@ -98,10 +98,10 @@ export async function captureShot(
   } finally {
     if (mode === 'viewport') {
       if (!captureBeyondViewport && preparedScroll) {
-        await evaluate(session, `window.scrollTo(${preparedScroll.x}, ${preparedScroll.y})`);
+        await evaluate(session, scrollToScript(preparedScroll.x, preparedScroll.y));
       } else if (captureBeyondViewport && params.clip) {
         const clip = params.clip as ElementRect;
-        await evaluate(session, `window.scrollTo(${clip.x}, ${clip.y})`);
+        await evaluate(session, scrollToScript(clip.x, clip.y));
       }
     }
   }

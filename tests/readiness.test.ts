@@ -4,6 +4,7 @@ import type { DebuggerSession } from '../src/capture/debugger';
 import {
   prepareDocument,
   restoreDocumentScroll,
+  scrollToScript,
   waitForDocumentAssets,
 } from '../src/capture/readiness';
 
@@ -140,4 +141,11 @@ it('sweeps a long full page from the top and restores manual framing afterward',
 
   await restoreDocumentScroll(session, originalScroll!);
   expect(scroll).toHaveBeenLastCalledWith(12, 640);
+});
+
+it('only interpolates finite scroll coordinates into page scripts', () => {
+  expect(scrollToScript(12, '340')).toBe('window.scrollTo(12, 340)');
+  expect(() => scrollToScript('0); alert(1', 0)).toThrow(/finite/);
+  expect(() => scrollToScript(Number.NaN, 0)).toThrow(/finite/);
+  expect(() => scrollToScript(0, Number.POSITIVE_INFINITY)).toThrow(/finite/);
 });
