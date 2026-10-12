@@ -63,6 +63,8 @@ pnpm dev
 
 This rebuilds the unpacked extension when files change. Reload the extension from `chrome://extensions` after a rebuild.
 
+The build stamps the extension version from `package.json` into `dist/manifest.json`. Bump the version there only.
+
 Run the complete local validation suite with:
 
 ```powershell
