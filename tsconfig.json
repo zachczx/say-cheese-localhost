@@ -13,7 +13,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["chrome", "vitest/globals", "unplugin-icons/types/svelte"]
+    "types": ["chrome", "vite/client", "vitest/globals", "unplugin-icons/types/svelte"]
   },
   "include": [
     "src",

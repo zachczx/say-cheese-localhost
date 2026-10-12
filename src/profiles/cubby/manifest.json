@@ -1,6 +1,7 @@
 {
   "id": "cubby",
   "label": "Cubby",
+  "order": 10,
   "defaultBaseUrl": "http://127.0.0.1:5174",
   "baseUrlHint": "Cubby QA: use 127.0.0.1:5174 with a verified household seed.",
   "outputDirectory": "say-cheese-localhost/cubby",

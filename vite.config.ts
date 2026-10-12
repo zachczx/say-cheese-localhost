@@ -1,4 +1,11 @@
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
@@ -38,9 +45,7 @@ export default defineConfig({
       name: 'copy-extension-manifest',
       closeBundle() {
         const outDir = resolve(import.meta.dirname, 'dist');
-        const cubbyProfileDir = resolve(outDir, 'profiles/cubby');
         mkdirSync(outDir, { recursive: true });
-        mkdirSync(cubbyProfileDir, { recursive: true });
         // package.json is the single source of truth for the extension version.
         const pkg = JSON.parse(
           readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
@@ -53,10 +58,15 @@ export default defineConfig({
           `${JSON.stringify({ ...manifest, version: pkg.version }, null, 2)}
 `,
         );
-        copyFileSync(
-          resolve(import.meta.dirname, 'src/profiles/cubby/manifest.json'),
-          resolve(cubbyProfileDir, 'manifest.json'),
-        );
+        // Ship every profile manifest as standalone JSON beside the bundle.
+        const profilesDir = resolve(import.meta.dirname, 'src/profiles');
+        for (const entry of readdirSync(profilesDir, { withFileTypes: true })) {
+          const source = resolve(profilesDir, entry.name, 'manifest.json');
+          if (!entry.isDirectory() || !existsSync(source)) continue;
+          const target = resolve(outDir, 'profiles', entry.name);
+          mkdirSync(target, { recursive: true });
+          copyFileSync(source, resolve(target, 'manifest.json'));
+        }
       },
     },
   ],
