@@ -844,8 +844,8 @@ kbd {
   line-height: 1.2;
 }
 
-.current-state strong::before,
-.status-badge::before {
+/* :where keeps the base dot at zero specificity so [data-status] colors win. */
+:where(.current-state strong, .status-badge)::before {
   content: '';
   display: inline-block;
   width: 8px;
