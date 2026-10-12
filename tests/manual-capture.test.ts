@@ -52,7 +52,9 @@ vi.mock('../src/capture/readiness', () => ({
     waitForQuiet = mocks.waitQuiet;
   },
 }));
-vi.mock('../src/capture/screenshot', () => ({
+vi.mock('../src/capture/screenshot', async (importOriginal) => ({
+  outputFilename: (await importOriginal<typeof import('../src/capture/screenshot')>())
+    .outputFilename,
   captureShot: mocks.capture,
   downloadScreenshot: mocks.download,
   waitForDownload: mocks.waitDownload,
@@ -108,6 +110,20 @@ describe('manual capture lifecycle', () => {
     expect(result.failures).toEqual([]);
     expect(result.skipped).toBe(1);
     expect(mocks.navigate).toHaveBeenCalledOnce();
+  });
+
+  it('saves PNG runs with a .png file name', async () => {
+    await runCaptureJob({
+      ...options(),
+      format: 'png',
+      onManualReady: vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next'),
+    });
+    expect(mocks.capture.mock.calls[0]?.[2]).toMatchObject({ format: 'png' });
+    expect(mocks.download).toHaveBeenCalledWith(
+      expect.any(String),
+      'say-cheese-localhost/demo',
+      'demo-01-overview.png',
+    );
   });
 
   it('lets each page settle before handing it to the user', async () => {

@@ -470,6 +470,25 @@ describe('controller', () => {
     await waitFor(() => expect(restored.checked).toBe(false));
   });
 
+  it('passes and persists the PNG image format', async () => {
+    runCaptureJobMock.mockResolvedValueOnce({
+      completed: 2,
+      failures: [],
+      stopped: false,
+      windowRetained: false,
+    });
+    render(App);
+    const format = (await screen.findByLabelText('Image format')) as HTMLSelectElement;
+    expect(format.value).toBe('webp');
+    await fireEvent.change(format, { target: { value: 'png' } });
+    expect(screen.getByText(/saved with a \.png extension/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 2 shots' }));
+    expect(runCaptureJobMock.mock.calls[0]?.[0].format).toBe('png');
+    expect(storageSetMock).toHaveBeenCalledWith({
+      'say-cheese-localhost.preferences.v1': expect.objectContaining({ imageFormat: 'png' }),
+    });
+  });
+
   it('passes and persists a forced color scheme', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,

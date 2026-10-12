@@ -1,4 +1,5 @@
 import type { ColorScheme } from '../capture/emulation';
+import type { ImageFormat } from '../capture/screenshot';
 
 export interface Preferences {
   profileId: string;
@@ -11,6 +12,7 @@ export interface Preferences {
   fullPageCapture: boolean;
   manualPreparation: boolean;
   colorScheme: ColorScheme;
+  imageFormat: ImageFormat;
   pageZoomPercent: number;
 }
 

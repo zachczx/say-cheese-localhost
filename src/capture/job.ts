@@ -16,7 +16,13 @@ import {
   waitForReadyConditions,
 } from './readiness';
 import { RequestReplacementInterceptor } from './requests';
-import { captureShot, downloadScreenshot, waitForDownload } from './screenshot';
+import {
+  captureShot,
+  downloadScreenshot,
+  outputFilename,
+  waitForDownload,
+  type ImageFormat,
+} from './screenshot';
 import { normalizeLocalBaseUrl } from './url';
 import { applyPageZoom } from './zoom';
 
@@ -54,6 +60,8 @@ export interface CaptureJobOptions {
   captureBeyondViewport?: boolean;
   fullPage?: boolean;
   pageZoomPercent?: number;
+  /** Output format. Defaults to WebP; PNG swaps each file's extension. */
+  format?: ImageFormat;
   /** Overrides `prefers-color-scheme` for the capture window. */
   colorScheme?: ColorScheme;
   signal?: AbortSignal;
@@ -286,6 +294,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   const dataUrl = await captureShot(session as DebuggerSession, shot, {
                     captureBeyondViewport: options.captureBeyondViewport,
                     fullPage: options.fullPage,
+                    format: options.format,
                   });
                   if (preparedScroll) {
                     await restoreDocumentScroll(session as DebuggerSession, preparedScroll);
@@ -296,7 +305,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   const downloadId = await downloadScreenshot(
                     dataUrl,
                     options.profile.outputDirectory,
-                    shot.filename,
+                    outputFilename(shot.filename, options.format),
                   );
                   await waitForDownload(downloadId, signal);
                   throwIfAborted(signal);

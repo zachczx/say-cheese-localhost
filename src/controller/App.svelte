@@ -3,6 +3,7 @@
 
   import { runCaptureJob, type ShotStatus } from '../capture/job';
   import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
+  import { outputFilename, type ImageFormat } from '../capture/screenshot';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -58,6 +59,7 @@
   let viewportId = $state(initialProfile.defaultViewport);
   let pageZoomPercent = $state(DEFAULT_PAGE_ZOOM_PERCENT);
   let colorScheme = $state<ColorScheme>('system');
+  let imageFormat = $state<ImageFormat>('webp');
   let pageZoomInput = $state(String(DEFAULT_PAGE_ZOOM_PERCENT));
   let pageZoomInvalid = $state(false);
   let pageZoomError = $state('');
@@ -184,6 +186,7 @@
       colorScheme: ['light', 'dark'].includes(stored.colorScheme as string)
         ? (stored.colorScheme as ColorScheme)
         : 'system',
+      imageFormat: stored.imageFormat === 'png' ? 'png' : 'webp',
     };
     preferences = loadedPreferences;
 
@@ -202,6 +205,7 @@
     pageZoomPercent = loadedPreferences.pageZoomPercent;
     pageZoomInput = String(loadedPreferences.pageZoomPercent);
     colorScheme = loadedPreferences.colorScheme;
+    imageFormat = loadedPreferences.imageFormat;
     pageZoomInvalid = false;
     pageZoomError = '';
     selectedIds =
@@ -305,6 +309,13 @@
     void persist();
   }
 
+  function updateImageFormat(value: string): void {
+    imageFormat = value === 'png' ? 'png' : 'webp';
+    if (!preferences) return;
+    preferences.imageFormat = imageFormat;
+    void persist();
+  }
+
   function updatePageZoom(value: string): void {
     pageZoomInput = value;
     if (!validatePageZoom(false) || !preferences) return;
@@ -404,6 +415,7 @@
         fullPage: fullPageCapture,
         pageZoomPercent,
         colorScheme,
+        format: imageFormat,
         signal: abortController.signal,
         onManualReady: manual ? awaitManualCapture : undefined,
         onWarnings: (value) => {
@@ -779,6 +791,26 @@
         </div>
 
         <div class="field-group">
+          <label for="image-format">Image format</label>
+          <select
+            class="select select-bordered w-full"
+            id="image-format"
+            value={imageFormat}
+            disabled={!ready || running}
+            aria-describedby="image-format-help"
+            onchange={(event) => updateImageFormat(event.currentTarget.value)}
+          >
+            <option value="webp">WebP</option>
+            <option value="png">PNG (lossless)</option>
+          </select>
+          <p class="field-help" id="image-format-help">
+            {imageFormat === 'png'
+              ? 'Lossless and larger. Files are saved with a .png extension.'
+              : 'Quality 100, but still lossy. Choose PNG if you see artifacts.'}
+          </p>
+        </div>
+
+        <div class="field-group">
           <label for="color-scheme">Color scheme</label>
           <select
             class="select select-bordered w-full"
@@ -1142,7 +1174,12 @@
           <header class="preview-header">
             <div>
               <h2 id="preview-title">{previewShot.label}</h2>
-              <p>{previewShot.filename}{previewSize ? ` · ${previewSize}` : ''}</p>
+              <p>
+                {outputFilename(
+                  previewShot.filename,
+                  previews[previewShot.id]?.startsWith('data:image/png') ? 'png' : 'webp',
+                )}{previewSize ? ` · ${previewSize}` : ''}
+              </p>
             </div>
             <button class="quiet-button btn btn-ghost btn-sm" type="button" onclick={closePreview}
               >Close</button
