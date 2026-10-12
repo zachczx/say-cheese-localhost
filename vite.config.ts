@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { svelteTesting } from '@testing-library/svelte/vite';
@@ -41,9 +41,17 @@ export default defineConfig({
         const cubbyProfileDir = resolve(outDir, 'profiles/cubby');
         mkdirSync(outDir, { recursive: true });
         mkdirSync(cubbyProfileDir, { recursive: true });
-        copyFileSync(
-          resolve(import.meta.dirname, 'manifest.json'),
+        // package.json is the single source of truth for the extension version.
+        const pkg = JSON.parse(
+          readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
+        ) as { version: string };
+        const manifest = JSON.parse(
+          readFileSync(resolve(import.meta.dirname, 'manifest.json'), 'utf8'),
+        ) as Record<string, unknown>;
+        writeFileSync(
           resolve(outDir, 'manifest.json'),
+          `${JSON.stringify({ ...manifest, version: pkg.version }, null, 2)}
+`,
         );
         copyFileSync(
           resolve(import.meta.dirname, 'src/profiles/cubby/manifest.json'),
