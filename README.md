@@ -6,8 +6,9 @@ The controller is a client-only Svelte application built directly with Vite. The
 worker, capture engine, profiles, storage, and fixture remain framework-independent TypeScript
 or HTML; the extension does not use SvelteKit or client-side routing.
 
-The current milestone includes the generic local fixture and the curated Cubby
-route profile. Use Cubby against its synthetic, manually verified QA environment. The capture tool does not start the app or seed its database.
+Two profiles ship today: the local fixture demo and Cubby. The capture tool never starts an
+application or seeds its database. Cubby's QA setup and shot list live in
+[`src/profiles/cubby/README.md`](src/profiles/cubby/README.md).
 
 ## Requirements
 
@@ -32,7 +33,9 @@ The unpacked extension is written to `dist`.
 4. Choose this repository's `dist` directory.
 5. Select the Say Cheese Localhost toolbar action to open the persistent controller.
 
-The extension requests only `debugger`, `downloads`, and `storage`. It deliberately does not request broad host or tab-reading access.
+The extension requests the `debugger`, `downloads`, and `storage` permissions. Its host access
+is limited to localhost and loopback origins, which the Base URL connection check uses. It
+deliberately does not request broad host or tab-reading access.
 
 ## Prove the local fixture
 
@@ -47,11 +50,13 @@ The default Local demo profile points to `http://localhost:5173`. In the control
 1. Keep the Phone viewport selected.
 2. Select one or both fixture shots.
 3. Choose **Open**, prepare the capture window, then choose **Capture current view**.
-4. Choose **Next shot / finish** when satisfied. You can capture again to overwrite the image without resetting its framing.
-5. Review the files under `Downloads/say-cheese-localhost/demo/`.
+4. Choose **Retake current view** to overwrite the image without resetting its framing, or
+   **Skip shot** to move on without saving.
+5. Choose **Next shot**, or **Finish** on the last shot.
+6. Review the files under `Downloads/say-cheese-localhost/demo/`.
 
-The default iPhone 14 Pro Max output should be exactly `1290 × 2796` from a
-`430 × 932` CSS viewport at 3× DPR. WebP quality must be assessed visually in
+The default iPhone 14 Pro Max output is exactly `1290 × 2796` from a `430 × 932` CSS viewport
+at 3× DPR, and native zoom does not change it. The end-to-end suite verifies both. WebP quality must be assessed visually in
 Chrome before the format is adopted for application profiles; use lossless PNG
 instead if artifacts are visible.
 
@@ -96,6 +101,8 @@ so adding a project means adding a folder and rebuilding:
 
 The build fails with the manifest path and every problem if a profile is invalid or reuses
 another profile's `id`. Each build also copies the manifests to `dist/profiles/<folder>/`.
+[`docs/profiles.md`](docs/profiles.md) documents every field, including timeouts, readiness
+conditions, and batch actions. A profile may keep its own `README.md` beside its manifest.
 
 ## Profile safety
 
@@ -113,65 +120,14 @@ Bundled replacement assets belong under `public/profiles/<profile>/assets/`; Vit
 
 Every job creates a dedicated Chrome window, applies viewport, native tab zoom, and timezone emulation, and processes shots in order. Native zoom accepts exact values such as 220% even when the browser's zoom menu skips them. **Prepare each shot manually** is on by default. Navigate, expand sections, and scroll in the capture window, then return to the controller and choose **Capture current view**. Retakes preserve that view. Human preparation has no deadline; navigation and capture operations have bounded deadlines. Stop or closing the target ends the session and cleans up the debugger.
 
-Profiles can tune those deadlines with an optional `timeouts` object. Each value is in milliseconds, from 1,000 to 600,000, and the stage deadlines cannot exceed `shotMs`:
-
-```json
-"timeouts": { "shotMs": 45000, "navigationMs": 15000, "networkQuietMs": 15000, "assetsMs": 15000 }
-```
-
-The values shown are the defaults.
+Profiles can tune those deadlines with an optional `timeouts` object. See
+[`docs/profiles.md`](docs/profiles.md#timeouts) for the fields and defaults.
 
 Turn off manual preparation to use the existing batch route/actions flow. Only batch preparation sweeps the document and resets scroll. Manual capture checks images in the capture area without moving the page. Failed images block saving; page exceptions and failed local API requests appear as warnings for human review. A saved image still needs visual inspection.
 
 Enable **Capture full page** to sweep lazy content, restore the prepared scroll position, and capture the complete document as one continuous WebP. Full-page output keeps the selected viewport width and has a variable height based on the rendered document.
 
+Under **Advanced**, **Render beyond the viewport** lays the page out at its full height while
+capturing the current view. Try it if content is clipped. Fixed top and bottom bars may move.
+
 By default, a completed or stopped job closes its capture window. Users may retain the window after a failure for inspection. Debugger detachment and emulation cleanup still occur before the window is retained.
-
-## Capture Cubby QA
-
-In `A:\cubby`, configure a disposable **screenshot QA database** in `.env.test.local`.
-Keep it separate from the integration test database: integration tests reset their database.
-Then run these commands explicitly:
-
-```powershell
-just seed-test-db
-just verify-test-db
-just dev-test
-```
-
-`seed-test-db` wipes the configured test database. Run it only when you intend to rebuild that disposable QA dataset. `verify-test-db` is read-only; if the seed is missing, prepare the database before capturing.
-
-Select **Cubby** in Say Cheese. Its default is `http://127.0.0.1:5174`; existing customized URLs remain unchanged. Confirm the synthetic household in the app before capture. Localhost itself is not proof that an application uses safe data, and this profile does not perform an automated QA preflight.
-
-Presets are starting points. For gym shots, open the workout or exercise you want to show before capturing. The controller displays preparation hints. Keep manual preparation enabled for these views; batch mode captures their starting routes.
-
-Review files in Downloads before publishing them, particularly when using a private QA photo directory. Do not point this profile at production-backed development.
-
-The public Cubby case study currently consumes these 16 screenshots, in this
-editorial order:
-
-1. `dashboard` — `/app`
-2. `tasks` — `/app/tasks`
-3. `limits` — `/app/limits`
-4. `screentimer` — `/app/screentimer`
-5. `enrichment` — `/app/enrichment`
-6. `gym-workout` — `/app/gym`, then drill into the first workout
-7. `gym-exercise` — `/app/gym/stats/exercises`, then drill into the first exercise
-8. `illness` — `/app/illness`
-9. `coffee` — `/app/coffee`
-10. `meals` — `/app/meals`
-11. `expiry` — `/app/expiry`
-12. `market` — `/app/market`
-13. `finance` — `/app/finance`
-14. `travel` — `/app/travel`
-15. `growing-up` — `/app/growing-up`
-16. `journal-recap` — `/app/journal/recap`
-
-The hand-editable source of truth is `src/profiles/cubby/manifest.json`. It is
-validated against the same schema as every other profile, and each build also
-copies it to `dist/profiles/cubby/manifest.json` as standalone JSON. Selecting
-**Cubby** shows the complete route queue. Use it with the verified synthetic QA environment described above.
-
-Captured files use the project-prefixed editorial sequence
-`cubby-01-dashboard.webp` through `cubby-16-journal-recap.webp`, so their order
-and source remain clear outside the output folder.
