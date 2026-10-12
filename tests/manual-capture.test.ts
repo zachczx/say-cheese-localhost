@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { runCaptureJob, type CaptureJobOptions } from '../src/capture/job';
+import { describePageException, runCaptureJob, type CaptureJobOptions } from '../src/capture/job';
 import { VIEWPORTS } from '../src/profiles/viewports';
 import { PROFILES } from '../src/profiles';
 
@@ -276,5 +276,39 @@ describe('manual capture lifecycle', () => {
     expect(result.completed).toBe(0);
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]?.message).toContain('Retake interrupted');
+  });
+});
+
+describe('page exception warnings', () => {
+  it('keeps the first line of the exception and drops stack frames', () => {
+    expect(
+      describePageException({
+        exceptionDetails: {
+          text: 'Uncaught',
+          exception: {
+            description:
+              "TypeError: Cannot read properties of undefined (reading 'id')\n    at http://127.0.0.1:5174/app.js?token=private:1:2",
+          },
+        },
+      }),
+    ).toBe("Uncaught exception: TypeError: Cannot read properties of undefined (reading 'id')");
+  });
+
+  it('uses thrown string values and falls back when nothing useful is available', () => {
+    expect(describePageException({ exceptionDetails: { exception: { value: 'boom' } } })).toBe(
+      'Uncaught exception: boom',
+    );
+    expect(describePageException({ exceptionDetails: { text: 'Uncaught' } })).toMatch(
+      /uncaught exception\. Inspect/,
+    );
+    expect(describePageException({})).toMatch(/uncaught exception\. Inspect/);
+  });
+
+  it('truncates very long messages', () => {
+    const message = describePageException({
+      exceptionDetails: { exception: { description: `Error: ${'x'.repeat(500)}` } },
+    });
+    expect(message.length).toBeLessThan(240);
+    expect(message.endsWith('…')).toBe(true);
   });
 });

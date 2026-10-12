@@ -112,7 +112,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     const requests = new Map<string, string>();
     session.onEvent((event) => {
       if (event.method === 'Runtime.exceptionThrown') {
-        pageErrors.push('The page raised an uncaught exception. Inspect the capture window.');
+        pageErrors.push(describePageException(event.params));
       }
       if (event.method === 'Network.requestWillBeSent') {
         const request = event.params.request as { url?: string } | undefined;
@@ -392,6 +392,26 @@ async function runPreflight(
       throw new Error(`Preflight refused capture: expected ${key}=${String(expectedValue)}.`);
     }
   }
+}
+
+/**
+ * Keeps the first line of an uncaught exception (for example
+ * "TypeError: x is undefined") so the warning is actionable. Stack frames are
+ * dropped because they carry script URLs and add noise.
+ */
+export function describePageException(params: Record<string, unknown>): string {
+  const details = params.exceptionDetails as
+    { text?: string; exception?: { description?: string; value?: unknown } } | undefined;
+  const raw =
+    details?.exception?.description ??
+    (typeof details?.exception?.value === 'string' ? details.exception.value : undefined) ??
+    details?.text;
+  const firstLine = raw?.split(/\r?\n/, 1)[0]?.trim();
+  if (!firstLine || firstLine === 'Uncaught') {
+    return 'The page raised an uncaught exception. Inspect the capture window.';
+  }
+  const message = firstLine.length > 200 ? `${firstLine.slice(0, 199)}…` : firstLine;
+  return `Uncaught exception: ${message}`;
 }
 
 /**
