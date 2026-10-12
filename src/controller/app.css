@@ -1086,6 +1086,15 @@ progress::-webkit-progress-value {
   white-space: nowrap;
 }
 
+.shot-error {
+  margin: 6px 0 0;
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .route-code {
   font-family: var(--font-mono);
   font-size: 11.5px;
