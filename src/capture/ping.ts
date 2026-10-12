@@ -1,4 +1,4 @@
-import { normalizeLocalBaseUrl } from './job';
+import { normalizeLocalBaseUrl } from './url';
 
 export interface PingResult {
   reachable: boolean;

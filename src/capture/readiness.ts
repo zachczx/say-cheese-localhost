@@ -1,6 +1,7 @@
 import type { ReadyCondition, Shot } from '../profiles/schema';
 import { delay, runWithTimeout, throwIfAborted } from './async';
 import type { DebuggerEvent, DebuggerSession } from './debugger';
+import { isLoopbackHostname, wildcardToRegExp } from './url';
 
 interface RuntimeResult<T> {
   result: { value?: T; description?: string; subtype?: string };
@@ -71,11 +72,7 @@ export class NetworkQuietTracker {
         return;
       }
       if (!['http:', 'https:'].includes(url.protocol)) return;
-      const local =
-        url.hostname === 'localhost' ||
-        url.hostname.endsWith('.localhost') ||
-        url.hostname === '127.0.0.1' ||
-        url.hostname === '[::1]';
+      const local = isLoopbackHostname(url.hostname);
       // Visible images/fonts have their own readiness gate. Remote API calls
       // (analytics, optional services) must not hold a localhost capture open.
       if (
@@ -329,9 +326,4 @@ export async function waitForDocumentAssets(
     'Fonts or images in the capture area did not become ready',
     signal,
   );
-}
-
-function wildcardToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-  return new RegExp(`^${escaped}$`);
 }

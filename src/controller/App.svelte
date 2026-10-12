@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
 
-  import { normalizeLocalBaseUrl, runCaptureJob, type ShotStatus } from '../capture/job';
+  import { runCaptureJob, type ShotStatus } from '../capture/job';
+  import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
   import type { CaptureProfile, Shot } from '../profiles/schema';

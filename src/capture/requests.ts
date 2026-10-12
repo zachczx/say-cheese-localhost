@@ -1,15 +1,13 @@
 import type { RequestReplacement } from '../profiles/schema';
 import { delay, runWithTimeout } from './async';
 import type { DebuggerEvent, DebuggerSession } from './debugger';
+import { matchesUrlPattern } from './url';
+
+export { matchesUrlPattern };
 
 interface PausedRequest {
   requestId: string;
   request: { url: string };
-}
-
-export function matchesUrlPattern(url: string, pattern: string): boolean {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-  return new RegExp(`^${escaped}$`).test(url);
 }
 
 export function deterministicAsset(url: string, assetPaths: readonly string[]): string {
