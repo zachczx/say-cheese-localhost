@@ -197,6 +197,14 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
               throw new Error(`Navigation returned HTTP ${navigation.status}.`);
             }
             await applyPageZoom(tabId, options.pageZoomPercent);
+            if (options.onManualReady) {
+              await settleBeforeManualPreparation(
+                tracker,
+                session as DebuggerSession,
+                signal,
+                timeouts.networkQuietMs,
+              );
+            }
             if (!options.onManualReady) {
               update(options, shot, 'preparing', currentUrl);
               await tracker?.waitForQuiet(signal, undefined, timeouts.networkQuietMs);
@@ -367,6 +375,34 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   if (unexpectedError !== undefined) throw unexpectedError;
 
   return { completed, skipped, failures, stopped, windowRetained };
+}
+
+const MANUAL_SETTLE_QUIET_CAP_MS = 5_000;
+
+/**
+ * A capture fired right after an in-window navigation can read a frame that
+ * Chrome rendered at the real window size, tiled across the emulated viewport.
+ * Page metrics look identical in good and bad frames, so the job prevents it:
+ * after navigating, wait for local requests to settle and for a painted frame
+ * before handing the shot to the user. A person is preparing the view, so a page
+ * that keeps polling only shortens the wait; it never blocks the shot.
+ */
+async function settleBeforeManualPreparation(
+  tracker: NetworkQuietTracker | undefined,
+  session: DebuggerSession,
+  signal: AbortSignal,
+  networkQuietMs: number,
+): Promise<void> {
+  try {
+    await tracker?.waitForQuiet(
+      signal,
+      undefined,
+      Math.min(networkQuietMs, MANUAL_SETTLE_QUIET_CAP_MS),
+    );
+  } catch (error) {
+    if (signal.aborted || isAbortError(error)) throw error;
+  }
+  await waitForPaint(session);
 }
 
 const UNCOMMITTED_TAB_ERROR = 'Cannot access contents of the page';

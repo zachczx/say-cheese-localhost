@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   waitDownload: vi.fn(),
   waitAssets: vi.fn(),
   waitPaint: vi.fn(),
+  waitQuiet: vi.fn(),
   applyZoom: vi.fn(),
   detach: vi.fn(),
   send: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock('../src/capture/readiness', () => ({
     start() {}
     reset() {}
     stop() {}
-    async waitForQuiet() {}
+    waitForQuiet = mocks.waitQuiet;
   },
 }));
 vi.mock('../src/capture/screenshot', () => ({
@@ -83,6 +84,7 @@ describe('manual capture lifecycle', () => {
     mocks.waitDownload.mockResolvedValue(undefined);
     mocks.waitAssets.mockResolvedValue(undefined);
     mocks.waitPaint.mockResolvedValue(true);
+    mocks.waitQuiet.mockResolvedValue(undefined);
     mocks.applyZoom.mockResolvedValue(undefined);
     mocks.prepare.mockResolvedValue(undefined);
     mocks.restoreScroll.mockResolvedValue(undefined);
@@ -108,6 +110,46 @@ describe('manual capture lifecycle', () => {
     expect(mocks.navigate).toHaveBeenCalledOnce();
   });
 
+  it('lets each page settle before handing it to the user', async () => {
+    const order: string[] = [];
+    mocks.navigate.mockImplementation(async () => {
+      order.push('navigate');
+      return { status: 200 };
+    });
+    mocks.waitQuiet.mockImplementation(async () => void order.push('quiet'));
+    mocks.waitPaint.mockImplementation(async () => {
+      order.push('paint');
+      return true;
+    });
+    await runCaptureJob({
+      ...options(),
+      shots: PROFILES[0]!.shots,
+      onManualReady: async () => {
+        order.push('user');
+        return 'next';
+      },
+    });
+    expect(order).toEqual([
+      'navigate',
+      'quiet',
+      'paint',
+      'user',
+      'navigate',
+      'quiet',
+      'paint',
+      'user',
+    ]);
+  });
+
+  it('still opens a manual shot when the page never goes quiet', async () => {
+    mocks.waitQuiet.mockRejectedValue(new Error('Network did not become quiet (5000 ms).'));
+    const ready = vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next');
+    const result = await runCaptureJob({ ...options(), onManualReady: ready });
+    expect(result.failures).toEqual([]);
+    expect(result.completed).toBe(1);
+    expect(mocks.waitQuiet.mock.calls[0]?.[2]).toBe(5_000);
+  });
+
   it('waits for a painted frame before every capture', async () => {
     await runCaptureJob({
       ...options(),
@@ -117,10 +159,13 @@ describe('manual capture lifecycle', () => {
         .mockResolvedValueOnce('capture')
         .mockResolvedValueOnce('next'),
     });
-    expect(mocks.waitPaint).toHaveBeenCalledTimes(2);
-    for (const [index, order] of mocks.capture.mock.invocationCallOrder.entries()) {
-      expect(mocks.waitPaint.mock.invocationCallOrder[index]).toBeLessThan(order);
-    }
+    // One wait while the page settles after navigation, then one before each capture.
+    const paints = mocks.waitPaint.mock.invocationCallOrder;
+    const captures = mocks.capture.mock.invocationCallOrder;
+    expect(paints).toHaveLength(3);
+    expect(paints[1]).toBeLessThan(captures[0]!);
+    expect(paints[2]).toBeGreaterThan(captures[0]!);
+    expect(paints[2]).toBeLessThan(captures[1]!);
   });
 
   it('retakes the prepared view without navigating or sweeping again', async () => {
