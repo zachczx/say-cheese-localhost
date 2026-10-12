@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { describePageException, runCaptureJob, type CaptureJobOptions } from '../src/capture/job';
+import {
+  describePageException,
+  retryWhileTabInitializes,
+  runCaptureJob,
+  type CaptureJobOptions,
+} from '../src/capture/job';
 import { VIEWPORTS } from '../src/profiles/viewports';
 import { PROFILES } from '../src/profiles';
 
@@ -89,6 +94,18 @@ describe('manual capture lifecycle', () => {
       },
       tabs: { setZoom: vi.fn() },
     });
+  });
+
+  it('retries setup while the new capture tab is still initializing', async () => {
+    mocks.applyZoom.mockRejectedValueOnce(
+      new Error(
+        'Cannot access contents of the page. Extension manifest must request permission to access the respective host.',
+      ),
+    );
+    const result = await runCaptureJob({ ...options(), onManualReady: async () => 'next' });
+    expect(result.failures).toEqual([]);
+    expect(result.skipped).toBe(1);
+    expect(mocks.navigate).toHaveBeenCalledOnce();
   });
 
   it('waits for a painted frame before every capture', async () => {
@@ -349,5 +366,35 @@ describe('page exception warnings', () => {
     });
     expect(message.length).toBeLessThan(240);
     expect(message.endsWith('…')).toBe(true);
+  });
+});
+
+describe('retryWhileTabInitializes', () => {
+  const uncommitted = new Error('Cannot access contents of the page. Extension manifest must ...');
+
+  it('retries only the uncommitted-tab error and returns the eventual result', async () => {
+    const operation = vi
+      .fn()
+      .mockRejectedValueOnce(uncommitted)
+      .mockRejectedValueOnce(uncommitted)
+      .mockResolvedValueOnce('ready');
+    await expect(
+      retryWhileTabInitializes(operation, new AbortController().signal, 5, 1),
+    ).resolves.toBe('ready');
+    expect(operation).toHaveBeenCalledTimes(3);
+  });
+
+  it('rethrows other errors immediately and gives up after the attempt limit', async () => {
+    const other = vi.fn().mockRejectedValue(new Error('No tab with id: 2.'));
+    await expect(
+      retryWhileTabInitializes(other, new AbortController().signal, 5, 1),
+    ).rejects.toThrow('No tab with id');
+    expect(other).toHaveBeenCalledOnce();
+
+    const stuck = vi.fn().mockRejectedValue(uncommitted);
+    await expect(retryWhileTabInitializes(stuck, new AbortController().signal, 3, 1)).rejects.toBe(
+      uncommitted,
+    );
+    expect(stuck).toHaveBeenCalledTimes(3);
   });
 });

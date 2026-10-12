@@ -103,9 +103,10 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     const tabId = captureWindow.tabs?.[0]?.id;
     if (tabId === undefined) throw new Error('Chrome did not create a capture tab.');
 
-    await applyPageZoom(tabId);
+    await retryWhileTabInitializes(() => applyPageZoom(tabId), jobController.signal);
     session = new DebuggerSession(tabId);
-    await session.attach();
+    const newSession = session;
+    await retryWhileTabInitializes(() => newSession.attach(), jobController.signal);
     session.onDetach((reason) => {
       detached = true;
       jobController.abort(new Error(`Chrome detached the capture debugger (${reason}).`));
@@ -366,6 +367,30 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   if (unexpectedError !== undefined) throw unexpectedError;
 
   return { completed, skipped, failures, stopped, windowRetained };
+}
+
+const UNCOMMITTED_TAB_ERROR = 'Cannot access contents of the page';
+
+/**
+ * A window created with `about:blank` briefly has no committed document. Chrome
+ * rejects tab APIs during that moment with "Cannot access contents of the
+ * page", about once in 40 attempts. Retry only that error, briefly.
+ */
+export async function retryWhileTabInitializes<T>(
+  operation: () => Promise<T>,
+  signal: AbortSignal,
+  attempts = 20,
+  intervalMs = 50,
+): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt >= attempts || !message.includes(UNCOMMITTED_TAB_ERROR)) throw error;
+      await delay(intervalMs, signal);
+    }
+  }
 }
 
 async function runPreflight(
