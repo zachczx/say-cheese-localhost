@@ -236,10 +236,14 @@ describe('controller', () => {
   it('uses the QA default and preserves a customized Cubby URL', async () => {
     const view = render(App);
     const project = await screen.findByLabelText('Project');
+    expect(screen.getByText('Only localhost and loopback addresses are accepted.')).toBeTruthy();
     await fireEvent.change(project, { target: { value: 'cubby' } });
     expect((screen.getByLabelText('Base URL') as HTMLInputElement).value).toBe(
       'http://127.0.0.1:5174',
     );
+    expect(
+      screen.getByText('Cubby QA: use 127.0.0.1:5174 with a verified household seed.'),
+    ).toBeTruthy();
     view.unmount();
     storageGetMock.mockResolvedValueOnce({
       'say-cheese-localhost.preferences.v1': {
