@@ -470,6 +470,46 @@ describe('controller', () => {
     await waitFor(() => expect(restored.checked).toBe(false));
   });
 
+  it('captures extra viewports into their own folders and keeps every failure', async () => {
+    runCaptureJobMock
+      .mockImplementationOnce(async (options) => {
+        options.onProgress?.(2, 2);
+        return { completed: 2, failures: [], stopped: false, windowRetained: false };
+      })
+      .mockImplementationOnce(async (options) => {
+        options.onShotUpdate?.({
+          shotId: 'fixture-details',
+          status: 'failed',
+          currentUrl: '',
+          detail: 'Timed out.',
+        });
+        options.onProgress?.(2, 2);
+        return {
+          completed: 1,
+          failures: [{ shotId: 'fixture-details', currentUrl: '', message: 'Timed out.' }],
+          stopped: false,
+          windowRetained: false,
+        };
+      });
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Desktop — 1440 × 1000' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 2 shots' }));
+    await waitFor(() => expect(runCaptureJobMock).toHaveBeenCalledTimes(2));
+
+    const [phone, desktop] = runCaptureJobMock.mock.calls.map(([options]) => options);
+    expect([phone?.viewport.id, phone?.outputSubdirectory]).toEqual(['phone', 'phone']);
+    expect([desktop?.viewport.id, desktop?.outputSubdirectory]).toEqual(['desktop', 'desktop']);
+    const row = (await screen.findByText('Desktop — 1440 × 1000: Timed out.')).closest('tr');
+    expect(row?.dataset.status).toBe('failed');
+    // Progress spans both passes: two shots per viewport.
+    expect(screen.getByText('4 / 4')).toBeTruthy();
+    expect(storageSetMock).toHaveBeenCalledWith({
+      'say-cheese-localhost.preferences.v1': expect.objectContaining({
+        extraViewportIds: ['desktop'],
+      }),
+    });
+  });
+
   it('saves each run in its own dated folder when asked', async () => {
     runCaptureJobMock.mockResolvedValue({
       completed: 2,
