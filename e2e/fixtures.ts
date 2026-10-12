@@ -32,11 +32,17 @@ export const test = base.extend<ExtensionFixtures>({
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
     await use(new URL(worker.url()).host);
   },
-  controller: async ({ context, extensionId }, use) => {
+  controller: async ({ context, extensionId }, use, testInfo) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/controller/index.html`);
     await page.getByLabel('Base URL').fill(FIXTURE_ORIGIN);
     await use(page);
+    if (testInfo.status !== testInfo.expectedStatus) {
+      // Keep the controller's last state with the failure; CI uploads test-results/.
+      const path = testInfo.outputPath('controller.png');
+      await page.screenshot({ path, fullPage: true });
+      await testInfo.attach('controller', { path, contentType: 'image/png' });
+    }
   },
 });
 
