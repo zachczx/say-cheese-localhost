@@ -2,6 +2,7 @@ import type { CaptureAction } from '../profiles/schema';
 import { delay, throwIfAborted } from './async';
 import type { DebuggerSession } from './debugger';
 import { evaluate, waitForSelector } from './readiness';
+import { wildcardToRegExp } from './url';
 
 export interface ActionDriver {
   waitForSelector(selector: string, timeoutMs?: number): Promise<void>;
@@ -113,9 +114,4 @@ export function createCdpActionDriver(
     },
     delay: (milliseconds) => delay(milliseconds, signal),
   };
-}
-
-export function wildcardToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-  return new RegExp(`^${escaped}$`);
 }

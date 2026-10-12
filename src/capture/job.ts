@@ -15,6 +15,7 @@ import {
 } from './readiness';
 import { RequestReplacementInterceptor } from './requests';
 import { captureShot, downloadScreenshot, waitForDownload } from './screenshot';
+import { normalizeLocalBaseUrl } from './url';
 import { applyPageZoom } from './zoom';
 
 export type ShotStatus =
@@ -359,27 +360,6 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   if (unexpectedError !== undefined) throw unexpectedError;
 
   return { completed, skipped, failures, stopped, windowRetained };
-}
-
-export function normalizeLocalBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error('Base URL must be a valid HTTP or HTTPS URL.');
-  }
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('Base URL must use HTTP or HTTPS.');
-  }
-  const hostname = url.hostname.toLowerCase();
-  const isLoopback =
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname === '127.0.0.1' ||
-    hostname === '[::1]';
-  if (!isLoopback) throw new Error('Base URL must point to localhost or a loopback address.');
-  url.hash = '';
-  return url.href;
 }
 
 async function runPreflight(
