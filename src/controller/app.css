@@ -1214,6 +1214,17 @@ progress::-webkit-progress-value {
   background: var(--canvas);
 }
 
+.shot-saved {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-subtle);
+  font-size: 11.5px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .shot-error {
   margin: 6px 0 0;
   color: var(--error);

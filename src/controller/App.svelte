@@ -9,6 +9,12 @@
   import { VIEWPORTS } from '../profiles/viewports';
   import { loadPreferences, savePreferences, type Preferences } from '../storage/preferences';
   import {
+    formatSavedAt,
+    loadCaptureLog,
+    saveCaptureLog,
+    type CaptureLog,
+  } from '../storage/captures';
+  import {
     DEFAULT_PAGE_ZOOM_PERCENT,
     MAX_PAGE_ZOOM_PERCENT,
     MIN_PAGE_ZOOM_PERCENT,
@@ -68,6 +74,9 @@
   let warnings = $state<string[]>([]);
   // Last image saved for each shot in this controller session, as a data URL.
   let previews = $state<Record<string, string>>({});
+  // When each shot was last saved, across sessions. Keyed by profile, then shot.
+  let captureLog = $state<CaptureLog>({});
+  let captureLogWriteQueue = Promise.resolve();
   let previewShotId = $state<string>();
   let previewSize = $state('');
   let previewDialog = $state<HTMLDialogElement>();
@@ -142,6 +151,11 @@
     } catch {
       applyPreferences({});
       settingsError = 'Saved settings could not be loaded. Safe defaults are active.';
+    }
+    try {
+      captureLog = await loadCaptureLog();
+    } catch {
+      captureLog = {};
     } finally {
       ready = true;
       scheduleAutoPing(0);
@@ -383,6 +397,7 @@
         },
         onShotSaved: (shotId, dataUrl) => {
           previews[shotId] = dataUrl;
+          recordCapture(shotId);
         },
         onShotUpdate(update) {
           if (update.status === 'navigating') {
@@ -527,6 +542,17 @@
       }
     });
     return preferenceWriteQueue;
+  }
+
+  function recordCapture(shotId: string): void {
+    captureLog[profile.id] = {
+      ...captureLog[profile.id],
+      [shotId]: { savedAt: Date.now(), viewportId },
+    };
+    const snapshot = $state.snapshot(captureLog);
+    captureLogWriteQueue = captureLogWriteQueue
+      .then(() => saveCaptureLog(snapshot))
+      .catch(() => undefined);
   }
 
   function openPreview(shotId: string): void {
@@ -1010,6 +1036,15 @@
                       <span class="shot-title">{shot.label}</span>
                       <span class="shot-file">{shot.filename}</span>
                       {#if shot.preparation}<span class="shot-file">{shot.preparation}</span>{/if}
+                      {#if captureLog[profile.id]?.[shot.id]}
+                        {@const record = captureLog[profile.id]![shot.id]!}
+                        <time
+                          class="shot-saved"
+                          datetime={new Date(record.savedAt).toISOString()}
+                          title={`Saved at ${VIEWPORTS.find((candidate) => candidate.id === record.viewportId)?.label ?? record.viewportId}`}
+                          >Saved {formatSavedAt(record.savedAt)}</time
+                        >
+                      {/if}
                       {#if state.status === 'failed' && state.error}
                         <p class="shot-error" id={`shot-error-${shot.id}`}>{state.error}</p>
                       {/if}

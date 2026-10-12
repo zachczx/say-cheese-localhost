@@ -126,6 +126,8 @@ Profiles can tune those deadlines with an optional `timeouts` object. See
 Each saved image appears as a thumbnail in the shot queue and, during manual preparation, beside
 the capture actions. Select a thumbnail to review the image at full resolution with its file name
 and pixel dimensions. Previews last until the controller closes or the project changes.
+Each row also shows when its image was last saved. That time persists across sessions, and its
+tooltip names the viewport used.
 
 Turn off manual preparation to use the existing batch route/actions flow. Only batch preparation sweeps the document and resets scroll. Manual capture checks images in the capture area without moving the page. Failed images block saving; page exceptions and failed local API requests appear as warnings for human review. A saved image still needs visual inspection.
 
