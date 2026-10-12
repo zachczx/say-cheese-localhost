@@ -343,6 +343,28 @@ describe('controller', () => {
     expect(runCaptureJobMock).not.toHaveBeenCalled();
   });
 
+  it('persists manual preparation and restores it on the next load', async () => {
+    const { unmount } = render(App);
+    const manual = (await screen.findByRole('checkbox', {
+      name: /Prepare each shot manually/,
+    })) as HTMLInputElement;
+    expect(manual.checked).toBe(true);
+    await fireEvent.click(manual);
+    expect(await screen.findByRole('button', { name: 'Capture 2 shots' })).toBeTruthy();
+    expect(storageSetMock).toHaveBeenLastCalledWith({
+      'say-cheese-localhost.preferences.v1': expect.objectContaining({ manualPreparation: false }),
+    });
+    unmount();
+
+    const saved = storageSetMock.mock.lastCall?.[0];
+    storageGetMock.mockResolvedValueOnce(saved);
+    render(App);
+    const restored = (await screen.findByRole('checkbox', {
+      name: /Prepare each shot manually/,
+    })) as HTMLInputElement;
+    await waitFor(() => expect(restored.checked).toBe(false));
+  });
+
   it('persists full-page mode and forces capture beyond the viewport', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,
