@@ -18,6 +18,11 @@ export async function applyPageZoom(
   tabId: number,
   value: unknown = DEFAULT_PAGE_ZOOM_PERCENT,
 ): Promise<void> {
+  const factor = normalizePageZoomPercent(value) / 100;
   await chrome.tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-tab' });
-  await chrome.tabs.setZoom(tabId, normalizePageZoomPercent(value) / 100);
+  // Re-applying the same zoom still relayouts and re-rasters the page, which can
+  // leave a partially painted frame for an immediate capture. Skip no-op changes.
+  const current = await chrome.tabs.getZoom(tabId);
+  if (Math.abs(current - factor) < 0.0001) return;
+  await chrome.tabs.setZoom(tabId, factor);
 }

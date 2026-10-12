@@ -7,11 +7,13 @@ import {
 
 const setZoom = vi.fn(async () => undefined);
 const setZoomSettings = vi.fn(async () => undefined);
+const getZoom = vi.fn(async () => 1);
 
 beforeEach(() => {
   setZoom.mockClear();
   setZoomSettings.mockClear();
-  vi.stubGlobal('chrome', { tabs: { setZoom, setZoomSettings } });
+  getZoom.mockReset().mockResolvedValue(1);
+  vi.stubGlobal('chrome', { tabs: { getZoom, setZoom, setZoomSettings } });
 });
 
 describe('page zoom', () => {
@@ -25,6 +27,13 @@ describe('page zoom', () => {
     expect(setZoomSettings.mock.invocationCallOrder[0]).toBeLessThan(
       setZoom.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it('skips a zoom change that would not change the factor', async () => {
+    getZoom.mockResolvedValueOnce(2.2);
+    await applyPageZoom(42, 220);
+    expect(setZoomSettings).toHaveBeenCalledOnce();
+    expect(setZoom).not.toHaveBeenCalled();
   });
 
   it('falls back to 100% for invalid or stale values', () => {

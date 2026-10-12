@@ -6,6 +6,7 @@ import {
   restoreDocumentScroll,
   scrollToScript,
   waitForDocumentAssets,
+  waitForPaint,
 } from '../src/capture/readiness';
 
 const session = {
@@ -148,4 +149,15 @@ it('only interpolates finite scroll coordinates into page scripts', () => {
   expect(() => scrollToScript('0); alert(1', 0)).toThrow(/finite/);
   expect(() => scrollToScript(Number.NaN, 0)).toThrow(/finite/);
   expect(() => scrollToScript(0, Number.POSITIVE_INFINITY)).toThrow(/finite/);
+});
+
+it('waits for painted frames and gives up when frames never arrive', async () => {
+  await expect(waitForPaint(session, 1_000)).resolves.toBe(true);
+  const raf = window.requestAnimationFrame;
+  window.requestAnimationFrame = () => 0;
+  try {
+    await expect(waitForPaint(session, 20)).resolves.toBe(false);
+  } finally {
+    window.requestAnimationFrame = raf;
+  }
 });
