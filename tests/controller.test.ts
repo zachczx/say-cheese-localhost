@@ -470,6 +470,32 @@ describe('controller', () => {
     await waitFor(() => expect(restored.checked).toBe(false));
   });
 
+  it('saves each run in its own dated folder when asked', async () => {
+    runCaptureJobMock.mockResolvedValue({
+      completed: 2,
+      failures: [],
+      stopped: false,
+      windowRetained: false,
+    });
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+    expect(runCaptureJobMock.mock.calls[0]?.[0].outputSubdirectory).toBeUndefined();
+
+    await fireEvent.click(
+      screen.getByRole('checkbox', { name: /Save each run in its own folder/ }),
+    );
+    expect(screen.getByText('Downloads/say-cheese-localhost/demo/<date_time>/')).toBeTruthy();
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+    const folder = runCaptureJobMock.mock.calls[1]?.[0].outputSubdirectory;
+    expect(folder).toMatch(/^\d{4}-\d{2}-\d{2}_\d{6}$/);
+    expect(
+      await screen.findByText(`2 images saved to Downloads/say-cheese-localhost/demo/${folder}/`),
+    ).toBeTruthy();
+    expect(storageSetMock).toHaveBeenCalledWith({
+      'say-cheese-localhost.preferences.v1': expect.objectContaining({ separateRunFolders: true }),
+    });
+  });
+
   it('passes and persists the PNG image format', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,

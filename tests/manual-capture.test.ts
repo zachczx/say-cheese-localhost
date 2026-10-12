@@ -112,6 +112,19 @@ describe('manual capture lifecycle', () => {
     expect(mocks.navigate).toHaveBeenCalledOnce();
   });
 
+  it('writes into a run folder beneath the profile directory', async () => {
+    await runCaptureJob({
+      ...options(),
+      outputSubdirectory: '2026-10-13_014502',
+      onManualReady: vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next'),
+    });
+    expect(mocks.download).toHaveBeenCalledWith(
+      expect.any(String),
+      'say-cheese-localhost/demo/2026-10-13_014502',
+      'demo-01-overview.webp',
+    );
+  });
+
   it('saves PNG runs with a .png file name', async () => {
     await runCaptureJob({
       ...options(),
