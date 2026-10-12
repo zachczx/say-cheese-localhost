@@ -71,6 +71,17 @@ Run the complete local validation suite with:
 pnpm run ci
 ```
 
+Unit tests mock Chrome DevTools Protocol. The end-to-end suite loads the built extension into
+Playwright's Chromium, serves the fixture, and checks real output dimensions for batch, zoomed,
+full-page, and manual captures:
+
+```powershell
+pnpm exec playwright install chromium
+pnpm e2e
+```
+
+Branded Chrome 137 and newer ignores `--load-extension`, so the suite uses Playwright's Chromium.
+
 ## Profile safety
 
 - Base URLs are restricted to `localhost`, `*.localhost`, `127.0.0.1`, and `[::1]`.

@@ -4,7 +4,7 @@ import svelte from 'eslint-plugin-svelte';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', '.tmp/**'] },
+  { ignores: ['dist/**', 'coverage/**', '.tmp/**', 'test-results/**', 'playwright-report/**'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   ...svelte.configs.recommended,
@@ -25,7 +25,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['vite.config.ts'],
-    languageOptions: { globals: globals.node },
+    files: ['vite.config.ts', 'playwright.config.ts', 'e2e/**/*.ts'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser, chrome: 'readonly' } },
   },
 );
