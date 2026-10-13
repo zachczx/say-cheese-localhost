@@ -66,6 +66,11 @@
   let manualSaved = $state(false);
   let manualError = $state('');
   let warnings = $state<string[]>([]);
+  // Last image saved for each shot in this controller session, as a data URL.
+  let previews = $state<Record<string, string>>({});
+  let previewShotId = $state<string>();
+  let previewSize = $state('');
+  let previewDialog = $state<HTMLDialogElement>();
   let chooseManual: ((action: 'capture' | 'next') => void) | undefined;
   let ready = $state(false);
   let running = $state(false);
@@ -93,6 +98,7 @@
   const manualIsLastShot = $derived(
     manualShot !== undefined && lastRunShotIds.at(-1) === manualShot.id,
   );
+  const previewShot = $derived(profile.shots.find((shot) => shot.id === previewShotId));
   const viewport = $derived(
     VIEWPORTS.find((candidate) => candidate.id === viewportId) ?? VIEWPORTS[0],
   );
@@ -191,6 +197,7 @@
     profile = next;
     profileId = next.id;
     preferences.profileId = next.id;
+    previews = {};
     baseUrl = preferences.baseUrls[next.id] ?? next.defaultBaseUrl;
     baseUrlInvalid = false;
     baseUrlError = '';
@@ -374,6 +381,9 @@
         onWarnings: (value) => {
           warnings = value;
         },
+        onShotSaved: (shotId, dataUrl) => {
+          previews[shotId] = dataUrl;
+        },
         onShotUpdate(update) {
           if (update.status === 'navigating') {
             manualSaved = false;
@@ -517,6 +527,20 @@
       }
     });
     return preferenceWriteQueue;
+  }
+
+  function openPreview(shotId: string): void {
+    previewShotId = shotId;
+    previewSize = '';
+    if (!previewDialog || previewDialog.open) return;
+    if (typeof previewDialog.showModal === 'function') previewDialog.showModal();
+    else previewDialog.setAttribute('open', '');
+  }
+
+  function closePreview(): void {
+    if (typeof previewDialog?.close === 'function') previewDialog.close();
+    else previewDialog?.removeAttribute('open');
+    previewShotId = undefined;
   }
 
   function openDownloads(): void {
@@ -835,39 +859,53 @@
       </div>
 
       {#if manualShot}
+        {@const savedPreview = manualSaved ? previews[manualShot.id] : undefined}
+        {@const preparedShot = manualShot}
         <div class="manual-preparation" aria-live="polite">
-          <strong>{manualShot.label}</strong>
-          <p>
-            {manualShot.preparation ??
-              (fullPageCapture
-                ? 'Arrange the page content, then capture the complete document.'
-                : 'Arrange the capture window, then capture the current view.')}
-          </p>
-          <p>
-            {manualError && manualSaved
-              ? 'An earlier image was saved, but the latest attempt failed.'
-              : manualSaved
-                ? 'Image saved. You can retake it or move on.'
-                : fullPageCapture
-                  ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
-                  : 'Navigate and scroll freely. Capture keeps your current framing.'}
-          </p>
-          {#if manualError}<p role="alert">{manualError} Correct the page and retry here.</p>{/if}
-          <div class="capture-actions">
-            <button
-              class="primary-button btn btn-primary"
-              type="button"
-              onclick={() => chooseManual?.('capture')}
-              >{manualSaved ? 'Retake' : 'Capture'}
-              {fullPageCapture ? 'full page' : 'current view'}</button
-            >
-            <button
-              class="quiet-button btn btn-ghost"
-              type="button"
-              onclick={() => chooseManual?.('next')}
-              >{manualSaved ? (manualIsLastShot ? 'Finish' : 'Next shot') : 'Skip shot'}</button
-            >
+          <div class="manual-copy">
+            <strong>{manualShot.label}</strong>
+            <p>
+              {manualShot.preparation ??
+                (fullPageCapture
+                  ? 'Arrange the page content, then capture the complete document.'
+                  : 'Arrange the capture window, then capture the current view.')}
+            </p>
+            <p>
+              {manualError && manualSaved
+                ? 'An earlier image was saved, but the latest attempt failed.'
+                : manualSaved
+                  ? 'Image saved. You can retake it or move on.'
+                  : fullPageCapture
+                    ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
+                    : 'Navigate and scroll freely. Capture keeps your current framing.'}
+            </p>
+            {#if manualError}<p role="alert">{manualError} Correct the page and retry here.</p>{/if}
+            <div class="capture-actions">
+              <button
+                class="primary-button btn btn-primary"
+                type="button"
+                onclick={() => chooseManual?.('capture')}
+                >{manualSaved ? 'Retake' : 'Capture'}
+                {fullPageCapture ? 'full page' : 'current view'}</button
+              >
+              <button
+                class="quiet-button btn btn-ghost"
+                type="button"
+                onclick={() => chooseManual?.('next')}
+                >{manualSaved ? (manualIsLastShot ? 'Finish' : 'Next shot') : 'Skip shot'}</button
+              >
+            </div>
           </div>
+          {#if savedPreview}
+            <button
+              class="manual-preview"
+              type="button"
+              aria-label={`Open saved image for ${preparedShot.label}`}
+              onclick={() => openPreview(preparedShot.id)}
+            >
+              <img src={savedPreview} alt="" />
+            </button>
+          {/if}
         </div>
       {/if}
       {#if warnings.length > 0}
@@ -957,12 +995,26 @@
               <tr data-status={state.status} data-active={activeStatuses.includes(state.status)}>
                 <td class="order-column">{String(index + 1).padStart(2, '0')}</td>
                 <td>
-                  <span class="shot-title">{shot.label}</span>
-                  <span class="shot-file">{shot.filename}</span>
-                  {#if shot.preparation}<span class="shot-file">{shot.preparation}</span>{/if}
-                  {#if state.status === 'failed' && state.error}
-                    <p class="shot-error" id={`shot-error-${shot.id}`}>{state.error}</p>
-                  {/if}
+                  <div class="shot-cell">
+                    {#if previews[shot.id]}
+                      <button
+                        class="shot-thumb"
+                        type="button"
+                        aria-label={`Preview ${shot.label}`}
+                        onclick={() => openPreview(shot.id)}
+                      >
+                        <img src={previews[shot.id]} alt="" />
+                      </button>
+                    {/if}
+                    <div class="shot-text">
+                      <span class="shot-title">{shot.label}</span>
+                      <span class="shot-file">{shot.filename}</span>
+                      {#if shot.preparation}<span class="shot-file">{shot.preparation}</span>{/if}
+                      {#if state.status === 'failed' && state.error}
+                        <p class="shot-error" id={`shot-error-${shot.id}`}>{state.error}</p>
+                      {/if}
+                    </div>
+                  </div>
                 </td>
                 <td><code class="route-code" title={shot.path}>{shot.path}</code></td>
                 <td class="status-column">
@@ -1008,6 +1060,35 @@
       <footer class="capture-footer">
         <p>{footerSummary}</p>
       </footer>
+      <dialog
+        class="preview-dialog"
+        bind:this={previewDialog}
+        aria-labelledby="preview-title"
+        onclose={() => (previewShotId = undefined)}
+        onclick={(event) => {
+          if (event.target === previewDialog) closePreview();
+        }}
+      >
+        {#if previewShot && previews[previewShot.id]}
+          <header class="preview-header">
+            <div>
+              <h2 id="preview-title">{previewShot.label}</h2>
+              <p>{previewShot.filename}{previewSize ? ` · ${previewSize}` : ''}</p>
+            </div>
+            <button class="quiet-button btn btn-ghost btn-sm" type="button" onclick={closePreview}
+              >Close</button
+            >
+          </header>
+          <img
+            src={previews[previewShot.id]}
+            alt={`Saved image for ${previewShot.label}`}
+            onload={(event) => {
+              const image = event.currentTarget as HTMLImageElement;
+              previewSize = `${image.naturalWidth} × ${image.naturalHeight}`;
+            }}
+          />
+        {/if}
+      </dialog>
     </section>
   </main>
 {/if}

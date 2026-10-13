@@ -245,6 +245,7 @@ describe('manual capture lifecycle', () => {
   it('does not report a failed download as saved and retries in place', async () => {
     mocks.waitDownload.mockRejectedValueOnce(new Error('Download interrupted'));
     const updates: string[] = [];
+    const saved = vi.fn();
     const ready = vi
       .fn()
       .mockResolvedValueOnce('capture')
@@ -254,8 +255,12 @@ describe('manual capture lifecycle', () => {
       ...options(),
       onManualReady: ready,
       onShotUpdate: (u) => updates.push(u.status),
+      onShotSaved: saved,
     });
     expect(updates.indexOf('failed')).toBeLessThan(updates.indexOf('complete'));
+    // Only the attempt that finished downloading hands its image to the controller.
+    expect(saved).toHaveBeenCalledOnce();
+    expect(saved).toHaveBeenCalledWith('fixture-overview', 'data:image/webp;base64,example');
     expect(result.completed).toBe(1);
     expect(result.failures).toEqual([]);
     expect(mocks.navigate).toHaveBeenCalledOnce();

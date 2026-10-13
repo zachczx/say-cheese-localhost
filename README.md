@@ -123,6 +123,10 @@ Every job creates a dedicated Chrome window, applies viewport, native tab zoom, 
 Profiles can tune those deadlines with an optional `timeouts` object. See
 [`docs/profiles.md`](docs/profiles.md#timeouts) for the fields and defaults.
 
+Each saved image appears as a thumbnail in the shot queue and, during manual preparation, beside
+the capture actions. Select a thumbnail to review the image at full resolution with its file name
+and pixel dimensions. Previews last until the controller closes or the project changes.
+
 Turn off manual preparation to use the existing batch route/actions flow. Only batch preparation sweeps the document and resets scroll. Manual capture checks images in the capture area without moving the page. Failed images block saving; page exceptions and failed local API requests appear as warnings for human review. A saved image still needs visual inspection.
 
 Enable **Capture full page** to sweep lazy content, restore the prepared scroll position, and capture the complete document as one continuous WebP. Full-page output keeps the selected viewport width and has a variable height based on the rendered document.

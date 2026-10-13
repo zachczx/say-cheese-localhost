@@ -295,6 +295,37 @@ describe('controller', () => {
     );
   });
 
+  it('previews saved images in the queue, the manual banner, and a dialog', async () => {
+    const image = 'data:image/webp;base64,UklGRg==';
+    runCaptureJobMock.mockImplementationOnce(async (options) => {
+      const shot = options.shots[0]!;
+      await options.onManualReady!(shot, options.signal!);
+      options.onShotSaved?.(shot.id, image);
+      options.onShotUpdate?.({ shotId: shot.id, status: 'complete', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      return { completed: 1, failures: [], stopped: false, windowRetained: false };
+    });
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+
+    const bannerPreview = await screen.findByRole('button', {
+      name: 'Open saved image for Fixture overview',
+    });
+    expect(bannerPreview.querySelector('img')?.getAttribute('src')).toBe(image);
+    const rowPreview = screen.getByRole('button', { name: 'Preview Fixture overview' });
+    expect(screen.queryByRole('button', { name: 'Preview Fixture details' })).toBeNull();
+
+    await fireEvent.click(rowPreview);
+    const dialog = document.querySelector('dialog.preview-dialog') as HTMLDialogElement;
+    expect(dialog.hasAttribute('open')).toBe(true);
+    expect(within(dialog).getByAltText('Saved image for Fixture overview')).toBeTruthy();
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(dialog.hasAttribute('open')).toBe(false);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Next shot' }));
+  });
+
   it('labels the final manual step as Finish', async () => {
     runCaptureJobMock.mockImplementationOnce(async (options) => {
       const shot = options.shots[0]!;
