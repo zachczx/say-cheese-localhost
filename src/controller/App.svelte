@@ -11,6 +11,7 @@
   import type { ImageFormat } from '../capture/screenshot';
   import { runFolderName } from '../storage/run-folder';
   import { closeOrphanedCaptureWindows } from '../capture/orphans';
+  import { CAPTURE_COMMAND } from '../commands';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -99,6 +100,8 @@
   let running = $state(false);
   let stopping = $state(false);
   let lastRunShotIds = $state<string[]>([]);
+  // False while extra viewport passes remain, so their last shot does not read "Finish".
+  let onFinalPass = $state(true);
   let progressCompleted = $state(0);
   let progressTotal = $state(initialProfile.shots.length);
   let currentUrl = $state('Ready to capture');
@@ -117,7 +120,7 @@
     ),
   );
   const manualIsLastShot = $derived(
-    manualShot !== undefined && lastRunShotIds.at(-1) === manualShot.id,
+    manualShot !== undefined && onFinalPass && lastRunShotIds.at(-1) === manualShot.id,
   );
   const previewShot = $derived(profile.shots.find((shot) => shot.id === previewShotId));
   const viewport = $derived(
@@ -138,7 +141,7 @@
   // background worker while the capture window has focus.
   let captureShortcut = $state('');
   function handleRuntimeMessage(message: unknown): void {
-    if ((message as { type?: string } | undefined)?.type !== 'capture-current-view') return;
+    if ((message as { type?: string } | undefined)?.type !== CAPTURE_COMMAND) return;
     if (manualShot) chooseManual?.('capture');
   }
   chrome.runtime?.onMessage?.addListener(handleRuntimeMessage);
@@ -146,11 +149,12 @@
     ?.getAll?.()
     .then((commands) => {
       captureShortcut =
-        commands.find((command) => command.name === 'capture-current-view')?.shortcut ?? '';
+        commands.find((command) => command.name === CAPTURE_COMMAND)?.shortcut ?? '';
     })
     .catch(() => undefined);
 
   onDestroy(() => {
+    clearPreviews();
     chrome.runtime?.onMessage?.removeListener(handleRuntimeMessage);
     abortController?.abort();
     pingAbortController?.abort();
@@ -235,8 +239,7 @@
     extraViewportIds = loadedPreferences.extraViewportIds;
     pageZoomInvalid = false;
     pageZoomError = '';
-    selectedIds =
-      loadedPreferences.selectedShots[storedProfile.id] ?? defaultShotIds(storedProfile);
+    selectedIds = restoredShotIds(storedProfile, loadedPreferences.selectedShots);
     resetShotStates();
   }
 
@@ -289,7 +292,7 @@
     profile = next;
     profileId = next.id;
     preferences.profileId = next.id;
-    previews = {};
+    clearPreviews();
     baseUrl = preferences.baseUrls[next.id] ?? next.defaultBaseUrl;
     baseUrlInvalid = false;
     baseUrlError = '';
@@ -298,7 +301,7 @@
     pingResult = undefined;
     viewportId = next.defaultViewport;
     preferences.viewportId = next.defaultViewport;
-    selectedIds = preferences.selectedShots[next.id] ?? defaultShotIds(next);
+    selectedIds = restoredShotIds(next, preferences.selectedShots);
     resetShotStates();
     hideError();
     void persist();
@@ -474,6 +477,25 @@
     }
   }
 
+  // A full-resolution data URL holds several MB of base64 per shot for the whole
+  // session. A Blob keeps the bytes once, and its object URL is revoked when replaced.
+  async function showPreview(shotId: string, dataUrl: string): Promise<void> {
+    let url = dataUrl;
+    try {
+      url = URL.createObjectURL(await (await fetch(dataUrl)).blob());
+    } catch {
+      // Fall back to the data URL; the preview still works, it just costs more memory.
+    }
+    const previous = previews[shotId];
+    previews[shotId] = url;
+    if (previous) URL.revokeObjectURL(previous);
+  }
+
+  function clearPreviews(): void {
+    for (const url of Object.values(previews)) URL.revokeObjectURL(url);
+    previews = {};
+  }
+
   async function startCapture(shots: Shot[]): Promise<void> {
     if (running || shots.length === 0 || !validateBaseUrl(true) || !validatePageZoom(true)) return;
     lastRunShotIds = shots.map((shot) => shot.id);
@@ -500,6 +522,17 @@
     setProgress(0, total);
     setJobStatus('preparing', 'Opening capture window');
     currentUrl = 'Preparing localhost target…';
+    const failuresByShot: Record<string, CaptureFailure[]> = {};
+    // A later pass can succeed where an earlier one failed, or throw before it
+    // reports. Keep every failure visible either way.
+    const showEveryFailure = () => {
+      for (const [shotId, failures] of Object.entries(failuresByShot)) {
+        shotStates[shotId] = {
+          status: 'failed',
+          error: failures.map((failure) => failure.message).join(' '),
+        };
+      }
+    };
 
     try {
       const result: CaptureJobResult = {
@@ -509,13 +542,13 @@
         stopped: false,
         windowRetained: false,
       };
-      const failuresByShot: Record<string, CaptureFailure[]> = {};
       for (const [passIndex, pass] of passes.entries()) {
         if (abortController.signal.aborted) {
           result.stopped = true;
           break;
         }
         const offset = passIndex * shots.length;
+        onFinalPass = passIndex === passes.length - 1;
         const subdirectory = [runFolder, multiViewport ? pass.id : undefined]
           .filter(Boolean)
           .join('/');
@@ -538,7 +571,7 @@
             warnings = value;
           },
           onShotSaved: (shotId, dataUrl) => {
-            previews[shotId] = dataUrl;
+            void showPreview(shotId, dataUrl);
             recordCapture(shotId, pass.id);
           },
           onShotUpdate(update) {
@@ -576,13 +609,7 @@
         }
         if (passResult.failures.length > 0 && !continueOnError) break;
       }
-      // A later pass can succeed where an earlier one failed. Keep every failure visible.
-      for (const [shotId, failures] of Object.entries(failuresByShot)) {
-        shotStates[shotId] = {
-          status: 'failed',
-          error: failures.map((failure) => failure.message).join(' '),
-        };
-      }
+      showEveryFailure();
 
       if (result.stopped) {
         setJobStatus('failed', 'Stopped');
@@ -604,6 +631,7 @@
         footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/${runFolder ? `${runFolder}/` : ''}${multiViewport ? ` in ${passes.length} viewport folders` : ''}`;
       }
     } catch (error) {
+      showEveryFailure();
       const message = error instanceof Error ? error.message : String(error);
       setJobStatus('failed', 'Capture failed');
       showError(message);
@@ -736,6 +764,13 @@
 
   function defaultShotIds(candidate: CaptureProfile): string[] {
     return candidate.shots.filter((shot) => shot.enabledByDefault).map((shot) => shot.id);
+  }
+
+  // A saved selection can name shots that a manifest has since renamed or removed.
+  function restoredShotIds(candidate: CaptureProfile, saved: Record<string, string[]>): string[] {
+    const ids = saved[candidate.id];
+    if (!ids) return defaultShotIds(candidate);
+    return ids.filter((id) => candidate.shots.some((shot) => shot.id === id));
   }
 
   function createShotStates(candidate: CaptureProfile): Record<string, ShotState> {

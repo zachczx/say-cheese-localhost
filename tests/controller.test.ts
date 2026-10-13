@@ -26,6 +26,9 @@ describe('controller', () => {
   beforeEach(() => {
     runCaptureJobMock.mockReset();
     pingAddressMock.mockReset();
+    // jsdom has no object URLs; the controller uses them for saved-image previews.
+    URL.createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn<(url: string) => void>();
     storageGetMock = vi.fn(async () => ({}));
     storageSetMock = vi.fn(async () => undefined);
     Object.defineProperty(globalThis, 'chrome', {
@@ -380,6 +383,8 @@ describe('controller', () => {
 
   it('previews saved images in the queue, the manual banner, and a dialog', async () => {
     const image = 'data:image/webp;base64,UklGRg==';
+    const objectUrl = 'blob:chrome-extension://test/preview-1';
+    vi.mocked(URL.createObjectURL).mockReturnValue(objectUrl);
     runCaptureJobMock.mockImplementationOnce(async (options) => {
       const shot = options.shots[0]!;
       await options.onManualReady!(shot, options.signal!);
@@ -395,7 +400,8 @@ describe('controller', () => {
     const bannerPreview = await screen.findByRole('button', {
       name: 'Open saved image for Fixture overview',
     });
-    expect(bannerPreview.querySelector('img')?.getAttribute('src')).toBe(image);
+    expect(bannerPreview.querySelector('img')?.getAttribute('src')).toBe(objectUrl);
+    expect(vi.mocked(URL.createObjectURL).mock.calls[0]?.[0]).toMatchObject({ type: 'image/webp' });
     const rowPreview = screen.getByRole('button', { name: 'Preview Fixture overview' });
     expect(screen.queryByRole('button', { name: 'Preview Fixture details' })).toBeNull();
 
@@ -407,6 +413,10 @@ describe('controller', () => {
     expect(dialog.hasAttribute('open')).toBe(false);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Next shot' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Next shot' })).toBeNull());
+    // Switching projects drops the previews and frees their object URLs.
+    await fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'cubby' } });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(objectUrl);
   });
 
   it('records when each shot was saved and shows it on the next load', async () => {
@@ -480,6 +490,28 @@ describe('controller', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Finish' })).toBeNull());
   });
 
+  it('labels Finish only on the last shot of the last viewport pass', async () => {
+    const saveThenMoveOn = async (options: CaptureJobOptions): Promise<CaptureJobResult> => {
+      const shot = options.shots[0]!;
+      options.onShotUpdate?.({ shotId: shot.id, status: 'navigating', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      options.onShotUpdate?.({ shotId: shot.id, status: 'complete', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      return { completed: 1, failures: [], stopped: false, windowRetained: false };
+    };
+    runCaptureJobMock.mockImplementationOnce(saveThenMoveOn).mockImplementationOnce(saveThenMoveOn);
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Fixture details' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Desktop — 1440 × 1000' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 1 shot' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Next shot' }));
+    await waitFor(() => expect(runCaptureJobMock).toHaveBeenCalledTimes(2));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Finish' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Finish' })).toBeNull());
+  });
+
   it('allows toggling capture beyond viewport and persists preference', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,
@@ -544,6 +576,17 @@ describe('controller', () => {
     expect(runCaptureJobMock).not.toHaveBeenCalled();
   });
 
+  it('ignores saved selections for shots the profile no longer has', async () => {
+    storageGetMock.mockResolvedValueOnce({
+      'say-cheese-localhost.preferences.v1': {
+        profileId: 'local-demo',
+        selectedShots: { 'local-demo': ['fixture-overview', 'renamed-away'] },
+      },
+    });
+    render(App);
+    expect(await screen.findByRole('button', { name: 'Open 1 shot' })).toBeTruthy();
+  });
+
   it('persists manual preparation and restores it on the next load', async () => {
     const { unmount } = render(App);
     const manual = (await screen.findByRole('checkbox', {
@@ -604,6 +647,30 @@ describe('controller', () => {
         extraViewportIds: ['desktop'],
       }),
     });
+  });
+
+  it('keeps earlier viewport failures when a later pass throws', async () => {
+    runCaptureJobMock
+      .mockImplementationOnce(async () => ({
+        completed: 1,
+        failures: [{ shotId: 'fixture-details', currentUrl: '', message: 'Timed out.' }],
+        stopped: false,
+        windowRetained: false,
+      }))
+      .mockImplementationOnce(async (options) => {
+        options.onShotUpdate?.({ shotId: 'fixture-details', status: 'navigating', currentUrl: '' });
+        throw new Error('Chrome detached the capture debugger (target_closed).');
+      });
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Desktop — 1440 × 1000' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: /Prepare each shot manually/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture 2 shots' }));
+
+    expect(await screen.findByText(/target_closed/)).toBeTruthy();
+    const row = (await screen.findByText('iPhone 14 Pro Max — 430 × 932: Timed out.')).closest(
+      'tr',
+    );
+    expect(row?.dataset.status).toBe('failed');
   });
 
   it('saves each run in its own dated folder when asked', async () => {
