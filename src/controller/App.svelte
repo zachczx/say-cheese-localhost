@@ -4,6 +4,7 @@
   import { runCaptureJob, type ShotStatus } from '../capture/job';
   import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
   import { outputFilename, type ImageFormat } from '../capture/screenshot';
+  import { runFolderName } from '../storage/run-folder';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -60,6 +61,8 @@
   let pageZoomPercent = $state(DEFAULT_PAGE_ZOOM_PERCENT);
   let colorScheme = $state<ColorScheme>('system');
   let imageFormat = $state<ImageFormat>('webp');
+  let separateRunFolders = $state(false);
+  let lastRunFolder = $state<string>();
   let pageZoomInput = $state(String(DEFAULT_PAGE_ZOOM_PERCENT));
   let pageZoomInvalid = $state(false);
   let pageZoomError = $state('');
@@ -187,6 +190,7 @@
         ? (stored.colorScheme as ColorScheme)
         : 'system',
       imageFormat: stored.imageFormat === 'png' ? 'png' : 'webp',
+      separateRunFolders: stored.separateRunFolders ?? false,
     };
     preferences = loadedPreferences;
 
@@ -206,6 +210,7 @@
     pageZoomInput = String(loadedPreferences.pageZoomPercent);
     colorScheme = loadedPreferences.colorScheme;
     imageFormat = loadedPreferences.imageFormat;
+    separateRunFolders = loadedPreferences.separateRunFolders;
     pageZoomInvalid = false;
     pageZoomError = '';
     selectedIds =
@@ -330,6 +335,13 @@
     void persist();
   }
 
+  function updateSeparateRunFolders(value: boolean): void {
+    separateRunFolders = value;
+    if (!preferences) return;
+    preferences.separateRunFolders = value;
+    void persist();
+  }
+
   function updateRetainWindow(value: boolean): void {
     retainWindow = value;
     if (!preferences) return;
@@ -386,6 +398,8 @@
   async function startCapture(shots: Shot[]): Promise<void> {
     if (running || shots.length === 0 || !validateBaseUrl(true) || !validatePageZoom(true)) return;
     lastRunShotIds = shots.map((shot) => shot.id);
+    const runFolder = separateRunFolders ? runFolderName() : undefined;
+    lastRunFolder = runFolder;
     for (const shot of shots) {
       shotStates[shot.id] = { status: 'pending' };
     }
@@ -411,6 +425,7 @@
         shots,
         continueOnError,
         retainWindowAfterFailure: retainWindow,
+        outputSubdirectory: runFolder,
         captureBeyondViewport,
         fullPage: fullPageCapture,
         pageZoomPercent,
@@ -457,7 +472,7 @@
         currentUrl = result.skipped
           ? `${result.skipped} shots skipped`
           : 'All selected shots finished';
-        footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/`;
+        footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/${runFolder ? `${runFolder}/` : ''}`;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -912,11 +927,35 @@
         </label>
       </fieldset>
 
+      <fieldset class="run-options config-card">
+        <legend>Output</legend>
+        <label class="check-row">
+          <input
+            class="checkbox checkbox-sm checkbox-primary"
+            type="checkbox"
+            checked={separateRunFolders}
+            disabled={!ready || running}
+            onchange={(event) => updateSeparateRunFolders(event.currentTarget.checked)}
+          />
+          <span>
+            <strong>Save each run in its own folder</strong>
+            <small
+              >Adds a date and time folder so earlier runs are kept. When off, matching files are
+              overwritten.</small
+            >
+          </span>
+        </label>
+      </fieldset>
+
       <div class="output-note config-card">
         <IconInfo aria-hidden="true" />
         <div>
           <strong>{selectedCount} {selectedCount === 1 ? 'shot' : 'shots'} selected</strong>
-          <p>Downloads/{profile.outputDirectory}/</p>
+          <p>
+            Downloads/{profile.outputDirectory}/{separateRunFolders
+              ? `${lastRunFolder ?? '<date_time>'}/`
+              : ''}
+          </p>
         </div>
       </div>
     </aside>

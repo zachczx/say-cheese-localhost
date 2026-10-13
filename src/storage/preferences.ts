@@ -13,6 +13,7 @@ export interface Preferences {
   manualPreparation: boolean;
   colorScheme: ColorScheme;
   imageFormat: ImageFormat;
+  separateRunFolders: boolean;
   pageZoomPercent: number;
 }
 

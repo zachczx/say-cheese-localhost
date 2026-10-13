@@ -138,4 +138,9 @@ Enable **Capture full page** to sweep lazy content, restore the prepared scroll 
 Under **Advanced**, **Render beyond the viewport** lays the page out at its full height while
 capturing the current view. Try it if content is clipped. Fixed top and bottom bars may move.
 
+Files with the same name are overwritten by default, so a profile's output folder always holds
+the latest images. Enable **Save each run in its own folder** to keep earlier runs. Each run
+then writes beneath a local date and time folder, for example
+`Downloads/say-cheese-localhost/demo/2026-10-13_014502/`.
+
 By default, a completed or stopped job closes its capture window. Users may retain the window after a failure for inspection. Debugger detachment and emulation cleanup still occur before the window is retained.

@@ -1,5 +1,5 @@
 import type { CaptureProfile, Shot, ViewportPreset } from '../profiles/schema';
-import { resolveTimeouts } from '../profiles/schema';
+import { joinDownloadPath, resolveTimeouts } from '../profiles/schema';
 import { delay, runWithTimeout, throwIfAborted } from './async';
 import { runActions, createCdpActionDriver } from './actions';
 import { DebuggerSession } from './debugger';
@@ -60,6 +60,8 @@ export interface CaptureJobOptions {
   captureBeyondViewport?: boolean;
   fullPage?: boolean;
   pageZoomPercent?: number;
+  /** Optional folder beneath the profile's output directory, such as a run timestamp. */
+  outputSubdirectory?: string;
   /** Output format. Defaults to WebP; PNG swaps each file's extension. */
   format?: ImageFormat;
   /** Overrides `prefers-color-scheme` for the capture window. */
@@ -84,6 +86,9 @@ export interface CaptureJobResult {
 export async function runCaptureJob(options: CaptureJobOptions): Promise<CaptureJobResult> {
   const baseUrl = normalizeLocalBaseUrl(options.baseUrl);
   const timeouts = resolveTimeouts(options.profile.timeouts);
+  const outputDirectory = options.outputSubdirectory
+    ? joinDownloadPath(options.profile.outputDirectory, options.outputSubdirectory)
+    : options.profile.outputDirectory;
   const failures: CaptureFailure[] = [];
   const jobController = new AbortController();
   const onExternalAbort = () => jobController.abort(options.signal?.reason);
@@ -304,7 +309,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   update(options, shot, 'downloading', currentUrl);
                   const downloadId = await downloadScreenshot(
                     dataUrl,
-                    options.profile.outputDirectory,
+                    outputDirectory,
                     outputFilename(shot.filename, options.format),
                   );
                   await waitForDownload(downloadId, signal);
