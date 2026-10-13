@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
 
   import { runCaptureJob, type ShotStatus } from '../capture/job';
+  import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -56,6 +57,7 @@
   let pingDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let viewportId = $state(initialProfile.defaultViewport);
   let pageZoomPercent = $state(DEFAULT_PAGE_ZOOM_PERCENT);
+  let colorScheme = $state<ColorScheme>('system');
   let pageZoomInput = $state(String(DEFAULT_PAGE_ZOOM_PERCENT));
   let pageZoomInvalid = $state(false);
   let pageZoomError = $state('');
@@ -179,6 +181,9 @@
       fullPageCapture: stored.fullPageCapture ?? false,
       manualPreparation: stored.manualPreparation ?? true,
       pageZoomPercent: normalizePageZoomPercent(stored.pageZoomPercent),
+      colorScheme: ['light', 'dark'].includes(stored.colorScheme as string)
+        ? (stored.colorScheme as ColorScheme)
+        : 'system',
     };
     preferences = loadedPreferences;
 
@@ -196,6 +201,7 @@
     manual = loadedPreferences.manualPreparation;
     pageZoomPercent = loadedPreferences.pageZoomPercent;
     pageZoomInput = String(loadedPreferences.pageZoomPercent);
+    colorScheme = loadedPreferences.colorScheme;
     pageZoomInvalid = false;
     pageZoomError = '';
     selectedIds =
@@ -289,6 +295,13 @@
     viewportId = nextViewportId;
     if (!preferences) return;
     preferences.viewportId = nextViewportId;
+    void persist();
+  }
+
+  function updateColorScheme(value: string): void {
+    colorScheme = value === 'light' || value === 'dark' ? value : 'system';
+    if (!preferences) return;
+    preferences.colorScheme = colorScheme;
     void persist();
   }
 
@@ -390,6 +403,7 @@
         captureBeyondViewport,
         fullPage: fullPageCapture,
         pageZoomPercent,
+        colorScheme,
         signal: abortController.signal,
         onManualReady: manual ? awaitManualCapture : undefined,
         onWarnings: (value) => {
@@ -762,6 +776,26 @@
             Uses native tab zoom, including exact values such as 220%.
           </p>
           <p class="field-error" id="page-zoom-error" aria-live="polite">{pageZoomError}</p>
+        </div>
+
+        <div class="field-group">
+          <label for="color-scheme">Color scheme</label>
+          <select
+            class="select select-bordered w-full"
+            id="color-scheme"
+            value={colorScheme}
+            disabled={!ready || running}
+            aria-describedby="color-scheme-help"
+            onchange={(event) => updateColorScheme(event.currentTarget.value)}
+          >
+            <option value="system">Match system</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <p class="field-help" id="color-scheme-help">
+            Sets prefers-color-scheme. Pages render in the {profile.timezone ?? DEFAULT_TIMEZONE}
+            time zone.
+          </p>
         </div>
       </div>
 

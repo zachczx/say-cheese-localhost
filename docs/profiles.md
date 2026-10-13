@@ -6,19 +6,20 @@ and name the manifest. `src/profiles/demo/manifest.json` is a small working exam
 
 ## Profile fields
 
-| Field                 | Required | Description                                                                                  |
-| --------------------- | -------- | -------------------------------------------------------------------------------------------- |
-| `id`                  | Yes      | Unique identifier. Saved settings are keyed by it, so avoid renaming it.                     |
-| `label`               | Yes      | Name shown in the project list.                                                              |
-| `order`               | No       | Integer position in the project list. Lower comes first; profiles without one sort last.     |
-| `defaultBaseUrl`      | Yes      | HTTP or HTTPS URL. The controller only accepts localhost and loopback addresses.             |
-| `baseUrlHint`         | No       | 1–160 characters of help shown under the Base URL field.                                     |
-| `outputDirectory`     | Yes      | Folder beneath Chrome's Downloads directory, for example `say-cheese-localhost/demo`.        |
-| `defaultViewport`     | Yes      | Viewport preset ID from `src/profiles/viewports.ts`, for example `phone`.                    |
-| `timeouts`            | No       | Per-stage deadlines. See [Timeouts](#timeouts).                                              |
-| `preflight`           | No       | A same-origin JSON endpoint that must match `expected` values before any capture starts.     |
-| `requestReplacements` | No       | Image URL patterns to fulfill from bundled assets under `public/profiles/<profile>/assets/`. |
-| `shots`               | Yes      | Ordered list of shots. See [Shot fields](#shot-fields).                                      |
+| Field                 | Required | Description                                                                                           |
+| --------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `id`                  | Yes      | Unique identifier. Saved settings are keyed by it, so avoid renaming it.                              |
+| `label`               | Yes      | Name shown in the project list.                                                                       |
+| `order`               | No       | Integer position in the project list. Lower comes first; profiles without one sort last.              |
+| `defaultBaseUrl`      | Yes      | HTTP or HTTPS URL. The controller only accepts localhost and loopback addresses.                      |
+| `baseUrlHint`         | No       | 1–160 characters of help shown under the Base URL field.                                              |
+| `outputDirectory`     | Yes      | Folder beneath Chrome's Downloads directory, for example `say-cheese-localhost/demo`.                 |
+| `timezone`            | No       | IANA time zone the capture window reports, for example `Europe/London`. Defaults to `Asia/Singapore`. |
+| `defaultViewport`     | Yes      | Viewport preset ID from `src/profiles/viewports.ts`, for example `phone`.                             |
+| `timeouts`            | No       | Per-stage deadlines. See [Timeouts](#timeouts).                                                       |
+| `preflight`           | No       | A same-origin JSON endpoint that must match `expected` values before any capture starts.              |
+| `requestReplacements` | No       | Image URL patterns to fulfill from bundled assets under `public/profiles/<profile>/assets/`.          |
+| `shots`               | Yes      | Ordered list of shots. See [Shot fields](#shot-fields).                                               |
 
 ## Shot fields
 

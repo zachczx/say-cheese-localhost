@@ -1,3 +1,5 @@
+import { isValidTimezone } from '../capture/emulation';
+
 export type CaptureMode = 'viewport' | 'full-page' | 'element';
 
 export interface ViewportPreset {
@@ -85,6 +87,8 @@ export interface CaptureProfile {
   baseUrlHint?: string;
   outputDirectory: string;
   defaultViewport: string;
+  /** IANA time zone the capture window reports. Defaults to Asia/Singapore. */
+  timezone?: string;
   timeouts?: CaptureTimeouts;
   preflight?: PreflightRule;
   requestReplacements?: RequestReplacement[];
@@ -152,6 +156,12 @@ export function validateProfile(
     errors.push(`Profile "${profile.id}" has an unsafe preflight path.`);
   }
   errors.push(...validateTimeouts(profile));
+  if (
+    profile.timezone !== undefined &&
+    (typeof profile.timezone !== 'string' || !isValidTimezone(profile.timezone))
+  ) {
+    errors.push(`Profile "${profile.id}" has an unknown timezone "${String(profile.timezone)}".`);
+  }
   if (
     profile.baseUrlHint !== undefined &&
     (typeof profile.baseUrlHint !== 'string' ||
