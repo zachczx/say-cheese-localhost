@@ -103,6 +103,8 @@ const actionTypes = new Set<CaptureAction['type']>([
   'wait-for-url',
   'delay',
 ]);
+const readyTypes = new Set<ReadyCondition['type']>(['selector', 'url']);
+const captureModes = new Set<CaptureMode>(['viewport', 'full-page', 'element']);
 
 export function validateViewport(viewport: ViewportPreset): string[] {
   const errors: string[] = [];
@@ -128,6 +130,10 @@ export function validateProfile(
   profile: CaptureProfile,
   viewports: readonly ViewportPreset[],
 ): string[] {
+  // Manifests are JSON, so check the structure before relying on it.
+  const shapeErrors = validateShape(profile);
+  if (shapeErrors.length > 0) return shapeErrors;
+
   const errors: string[] = [];
   const viewportIds = new Set(viewports.map((viewport) => viewport.id));
   const shotIds = new Set<string>();
@@ -136,6 +142,9 @@ export function validateProfile(
   if (!profile.id.trim()) errors.push('Profile ID is required.');
   if (!profile.label.trim()) errors.push(`Profile "${profile.id}" needs a label.`);
   if (profile.shots.length === 0) errors.push(`Profile "${profile.id}" has no shots.`);
+  if (profile.order !== undefined && !Number.isInteger(profile.order)) {
+    errors.push(`Profile "${profile.id}" order must be an integer.`);
+  }
 
   try {
     const url = new URL(profile.defaultBaseUrl);
@@ -197,10 +206,7 @@ export function validateProfile(
       errors.push(`Shot "${shot.id}" captureBeyondViewport must be a boolean.`);
     }
     for (const action of shot.actions ?? []) {
-      if (!actionTypes.has(action.type)) {
-        errors.push(`Shot "${shot.id}" uses unsupported action "${String(action.type)}".`);
-      }
-      if ('timeoutMs' in action && action.timeoutMs !== undefined && action.timeoutMs <= 0) {
+      if ('timeoutMs' in action && !isOptionalPositive(action.timeoutMs)) {
         errors.push(`Shot "${shot.id}" has a non-positive action timeout.`);
       }
       if (action.type === 'select-index' && (!Number.isInteger(action.index) || action.index < 0)) {
@@ -212,13 +218,16 @@ export function validateProfile(
       ) {
         errors.push(`Shot "${shot.id}" has an invalid delay.`);
       }
+      if (
+        action.type === 'scroll-to' &&
+        action.topOffset !== undefined &&
+        !Number.isFinite(action.topOffset)
+      ) {
+        errors.push(`Shot "${shot.id}" has an invalid scroll offset.`);
+      }
     }
     for (const condition of shot.ready ?? []) {
-      if (
-        'timeoutMs' in condition &&
-        condition.timeoutMs !== undefined &&
-        condition.timeoutMs <= 0
-      ) {
+      if (!isOptionalPositive(condition.timeoutMs)) {
         errors.push(`Shot "${shot.id}" has a non-positive readiness timeout.`);
       }
     }
@@ -240,6 +249,119 @@ export function validateProfile(
     }
   }
 
+  return errors;
+}
+
+function isOptionalPositive(value: unknown): boolean {
+  return value === undefined || (typeof value === 'number' && value > 0);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function validateShape(value: unknown): string[] {
+  if (!isRecord(value)) return ['The profile must be a JSON object.'];
+  const errors: string[] = [];
+  for (const key of ['id', 'label', 'defaultBaseUrl', 'outputDirectory', 'defaultViewport']) {
+    if (typeof value[key] !== 'string') errors.push(`The profile needs a "${key}" string.`);
+  }
+  if (value.timeouts !== undefined && !isRecord(value.timeouts)) {
+    errors.push('"timeouts" must be an object.');
+  }
+  if (
+    value.preflight !== undefined &&
+    !(
+      isRecord(value.preflight) &&
+      typeof value.preflight.path === 'string' &&
+      isRecord(value.preflight.expected)
+    )
+  ) {
+    errors.push('"preflight" needs a "path" string and an "expected" object.');
+  }
+  if (value.requestReplacements !== undefined) {
+    if (!Array.isArray(value.requestReplacements)) {
+      errors.push('"requestReplacements" must be a list.');
+    } else {
+      value.requestReplacements.forEach((replacement: unknown, index) => {
+        if (
+          !isRecord(replacement) ||
+          typeof replacement.urlPattern !== 'string' ||
+          !isStringList(replacement.assetPaths)
+        ) {
+          errors.push(
+            `Request replacement ${index + 1} needs a "urlPattern" string and an "assetPaths" list of strings.`,
+          );
+        }
+      });
+    }
+  }
+  if (!Array.isArray(value.shots)) {
+    errors.push('The profile needs a "shots" list.');
+    return errors;
+  }
+  value.shots.forEach((shot: unknown, index) => errors.push(...validateShotShape(shot, index)));
+  return errors;
+}
+
+function validateShotShape(shot: unknown, index: number): string[] {
+  if (!isRecord(shot)) return [`Shot ${index + 1} must be an object.`];
+  const name =
+    typeof shot.id === 'string' && shot.id.trim() ? `Shot "${shot.id}"` : `Shot ${index + 1}`;
+  const errors: string[] = [];
+  for (const key of ['id', 'label', 'path', 'filename']) {
+    if (typeof shot[key] !== 'string') errors.push(`${name} needs a "${key}" string.`);
+  }
+  if (typeof shot.enabledByDefault !== 'boolean') {
+    errors.push(`${name} needs "enabledByDefault" set to true or false.`);
+  }
+  if (shot.preparation !== undefined && typeof shot.preparation !== 'string') {
+    errors.push(`${name} "preparation" must be a string.`);
+  }
+  if (shot.capture !== undefined) {
+    if (!isRecord(shot.capture) || !captureModes.has(shot.capture.mode as CaptureMode)) {
+      errors.push(`${name} "capture" needs a "mode" of viewport, full-page, or element.`);
+    } else if (shot.capture.selector !== undefined && typeof shot.capture.selector !== 'string') {
+      errors.push(`${name} capture "selector" must be a string.`);
+    }
+  }
+  if (shot.ready !== undefined) {
+    if (!Array.isArray(shot.ready)) {
+      errors.push(`${name} "ready" must be a list.`);
+    } else {
+      shot.ready.forEach((condition: unknown, conditionIndex) => {
+        const label = `${name} ready condition ${conditionIndex + 1}`;
+        if (!isRecord(condition) || !readyTypes.has(condition.type as ReadyCondition['type'])) {
+          errors.push(`${label} needs a "type" of selector or url.`);
+        } else if (condition.type === 'selector' && typeof condition.selector !== 'string') {
+          errors.push(`${label} needs a "selector" string.`);
+        } else if (condition.type === 'url' && typeof condition.pattern !== 'string') {
+          errors.push(`${label} needs a "pattern" string.`);
+        }
+      });
+    }
+  }
+  if (shot.actions !== undefined) {
+    if (!Array.isArray(shot.actions)) {
+      errors.push(`${name} "actions" must be a list.`);
+    } else {
+      shot.actions.forEach((action: unknown, actionIndex) => {
+        const label = `${name} action ${actionIndex + 1}`;
+        if (!isRecord(action) || !actionTypes.has(action.type as CaptureAction['type'])) {
+          const type = isRecord(action) ? ` "${String(action.type)}"` : '';
+          errors.push(`${label} uses an unsupported type${type}.`);
+        } else if (action.type === 'wait-for-url') {
+          if (typeof action.pattern !== 'string') errors.push(`${label} needs a "pattern" string.`);
+        } else if (action.type !== 'delay' && typeof action.selector !== 'string') {
+          errors.push(`${label} needs a "selector" string.`);
+        }
+      });
+    }
+  }
   return errors;
 }
 
