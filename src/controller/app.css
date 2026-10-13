@@ -1,5 +1,3 @@
-/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: modern-saas · pre-emit critique: P5 H5 E5 S5 R5 V5 */
-
 @import 'tailwindcss';
 
 @font-face {
@@ -24,11 +22,20 @@
     U+A720-A7FF;
 }
 
+@font-face {
+  font-family: 'Geist Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2')
+    format('woff2');
+}
+
 @theme {
   --font-sans:
     'Geist Variable', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     sans-serif;
-  --font-mono: var(--font-sans);
+  --font-mono: 'Geist Mono Variable', ui-monospace, Consolas, monospace;
 }
 
 @plugin 'daisyui' {
@@ -76,7 +83,7 @@
   color-scheme: light;
   font-synthesis: none;
 
-  /* Theme tokens based on DaisyUI theme */
+  /* Theme tokens derived from the DaisyUI theme */
   --canvas: var(--color-base-200);
   --surface: var(--color-base-100);
   --surface-muted: var(--color-base-300);
@@ -111,10 +118,9 @@
   --radius-lg: 12px;
   --radius-pill: 9999px;
 
-  /* Shadows (Warm organic film shadows) */
+  /* Shadows */
   --shadow-sm: 0 1px 2px oklch(0.18 0.025 155 / 5%);
   --shadow-card: 0 1px 3px oklch(0.18 0.025 155 / 4%), 0 1px 2px oklch(0.18 0.025 155 / 2%);
-  --shadow-button: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 2px 5px oklch(0.48 0.17 155 / 25%);
 
   /* Transitions */
   --ease-tactile: cubic-bezier(0.16, 1, 0.3, 1);
@@ -125,7 +131,6 @@
   box-sizing: border-box;
 }
 
-/* Hallmark mobile responsiveness discipline: root overflow-x clip (gate 34) */
 html {
   min-width: 720px;
   background: var(--canvas);
@@ -151,7 +156,6 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Hallmark typography purity: no italic headings anywhere (gate 38a) */
 h1,
 h2,
 h3,
@@ -174,7 +178,7 @@ code,
 kbd,
 samp,
 pre {
-  font-family: inherit;
+  font-family: var(--font-mono);
 }
 
 button,
@@ -183,7 +187,6 @@ input[type='checkbox'] {
   cursor: pointer;
 }
 
-/* 8-state discipline: :focus-visible across interactive elements */
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -225,7 +228,7 @@ svg {
 }
 
 /* ==========================================================================
-   Header: Modern SaaS Masthead
+   Header
    ========================================================================== */
 
 .app-header {
@@ -342,7 +345,7 @@ svg {
 }
 
 /* ==========================================================================
-   Workspace Layout (Modern SaaS 2-Column Workbench)
+   Workspace layout
    ========================================================================== */
 
 .workspace {
@@ -367,7 +370,7 @@ svg {
 }
 
 /* ==========================================================================
-   Sidebar Configuration Rack (Card-Based Settings Architecture)
+   Configuration sidebar
    ========================================================================== */
 
 .configuration {
@@ -422,7 +425,7 @@ svg {
   font-size: 12px;
 }
 
-/* Modern Card Containers */
+/* Cards */
 .config-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -459,7 +462,7 @@ svg {
   text-transform: uppercase;
 }
 
-/* Inputs and Selects refinements */
+/* Inputs and selects */
 input[type='url'] {
   font-size: 12.5px;
   letter-spacing: -0.01em;
@@ -547,7 +550,7 @@ input[type='url'] {
   border-radius: 4px;
 }
 
-/* Interactive Check Row Card */
+/* Option rows */
 .run-options.config-card {
   gap: 4px;
 }
@@ -603,7 +606,7 @@ input[type='url'] {
   line-height: 1.4;
 }
 
-/* Output directory note card */
+/* Output note */
 .output-note.config-card {
   display: flex;
   flex-direction: row;
@@ -636,7 +639,7 @@ input[type='url'] {
 }
 
 /* ==========================================================================
-   Capture Panel (Main Stage Workbench)
+   Capture panel
    ========================================================================== */
 
 .capture-panel {
@@ -646,7 +649,7 @@ input[type='url'] {
   background: var(--surface);
 }
 
-/* Command Bar Toolbar */
+/* Toolbar */
 .capture-toolbar {
   display: flex;
   gap: 1.5rem;
@@ -664,7 +667,7 @@ input[type='url'] {
   align-items: center;
 }
 
-/* Primary Capture & Stop Buttons - 8-state model */
+/* Primary and stop buttons */
 .primary-button,
 .stop-button {
   gap: 8px;
@@ -678,31 +681,17 @@ input[type='url'] {
 .primary-button {
   min-width: 190px;
   color: var(--primary-content);
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--primary) 90%, white) 0%,
-    var(--primary) 100%
-  );
-  border: 1px solid color-mix(in oklch, var(--primary) 80%, black);
-  box-shadow: var(--shadow-button);
+  background: var(--primary);
+  border: 1px solid var(--primary-hover);
+  box-shadow: var(--shadow-sm);
 }
 
 .primary-button:hover:not(:disabled) {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklch, var(--primary) 96%, white) 0%,
-    color-mix(in oklch, var(--primary) 92%, black) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 4px 12px color-mix(in oklch, var(--primary) 35%, transparent);
+  background: var(--primary-hover);
 }
 
 .primary-button:active:not(:disabled) {
   transform: translateY(1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 1px 3px color-mix(in oklch, var(--primary) 25%, transparent);
 }
 
 .primary-button svg {
@@ -756,7 +745,7 @@ kbd {
   font-weight: 600;
 }
 
-/* Manual Preparation Darkroom Banner */
+/* Manual preparation */
 .manual-preparation {
   display: flex;
   flex-direction: column;
@@ -792,7 +781,7 @@ kbd {
 }
 
 /* ==========================================================================
-   Telemetry Strip (Dashboard KPI Metrics Bar)
+   Run status
    ========================================================================== */
 
 .run-status {
@@ -984,7 +973,7 @@ progress::-webkit-progress-value {
 }
 
 /* ==========================================================================
-   Shot Queue Ledger (Vercel / Linear Data Table)
+   Shot queue
    ========================================================================== */
 
 .shot-table-wrap {
@@ -1098,7 +1087,7 @@ progress::-webkit-progress-value {
 }
 
 .route-code {
-  font-family: inherit;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--ink);
   background: var(--surface-muted);
@@ -1106,6 +1095,11 @@ progress::-webkit-progress-value {
   padding: 2px 7px;
   border-radius: var(--radius-xs);
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .status-badge {
@@ -1177,7 +1171,7 @@ progress::-webkit-progress-value {
   border: 0;
 }
 
-/* Responsive Workbench adaptations */
+/* Narrow windows */
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 290px minmax(0, 1fr);
