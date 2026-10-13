@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
 
-  import { runCaptureJob, type ShotStatus } from '../capture/job';
+  import {
+    runCaptureJob,
+    type CaptureFailure,
+    type CaptureJobResult,
+    type ShotStatus,
+  } from '../capture/job';
   import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
   import { outputFilename, type ImageFormat } from '../capture/screenshot';
   import { runFolderName } from '../storage/run-folder';
@@ -58,6 +63,7 @@
   let pingAbortController: AbortController | undefined;
   let pingDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let viewportId = $state(initialProfile.defaultViewport);
+  let extraViewportIds = $state<string[]>([]);
   let pageZoomPercent = $state(DEFAULT_PAGE_ZOOM_PERCENT);
   let colorScheme = $state<ColorScheme>('system');
   let imageFormat = $state<ImageFormat>('webp');
@@ -117,6 +123,12 @@
   const previewShot = $derived(profile.shots.find((shot) => shot.id === previewShotId));
   const viewport = $derived(
     VIEWPORTS.find((candidate) => candidate.id === viewportId) ?? VIEWPORTS[0],
+  );
+  // Extra viewports, in preset order, never including the main viewport.
+  const extraViewports = $derived(
+    VIEWPORTS.filter(
+      (candidate) => candidate.id !== viewportId && extraViewportIds.includes(candidate.id),
+    ),
   );
 
   onMount(() => {
@@ -191,6 +203,9 @@
         : 'system',
       imageFormat: stored.imageFormat === 'png' ? 'png' : 'webp',
       separateRunFolders: stored.separateRunFolders ?? false,
+      extraViewportIds: Array.isArray(stored.extraViewportIds)
+        ? stored.extraViewportIds.filter((id) => VIEWPORTS.some((candidate) => candidate.id === id))
+        : [],
     };
     preferences = loadedPreferences;
 
@@ -211,6 +226,7 @@
     colorScheme = loadedPreferences.colorScheme;
     imageFormat = loadedPreferences.imageFormat;
     separateRunFolders = loadedPreferences.separateRunFolders;
+    extraViewportIds = loadedPreferences.extraViewportIds;
     pageZoomInvalid = false;
     pageZoomError = '';
     selectedIds =
@@ -298,6 +314,15 @@
         pinging = false;
       }
     }
+  }
+
+  function toggleExtraViewport(id: string, checked: boolean): void {
+    extraViewportIds = checked
+      ? [...new Set([...extraViewportIds, id])]
+      : extraViewportIds.filter((candidate) => candidate !== id);
+    if (!preferences) return;
+    preferences.extraViewportIds = [...extraViewportIds];
+    void persist();
   }
 
   function updateViewport(nextViewportId: string): void {
@@ -413,47 +438,97 @@
     manualSaved = false;
     manualError = '';
     warnings = [];
-    setProgress(0, shots.length);
+    // One pass per viewport. A single viewport keeps today's paths unchanged; with
+    // extras, each viewport writes into its own folder so file names never collide.
+    const passes = [viewport, ...extraViewports];
+    const multiViewport = passes.length > 1;
+    const total = shots.length * passes.length;
+    setProgress(0, total);
     setJobStatus('preparing', 'Opening capture window');
     currentUrl = 'Preparing localhost target…';
 
     try {
-      const result = await runCaptureJob({
-        profile,
-        baseUrl,
-        viewport,
-        shots,
-        continueOnError,
-        retainWindowAfterFailure: retainWindow,
-        outputSubdirectory: runFolder,
-        captureBeyondViewport,
-        fullPage: fullPageCapture,
-        pageZoomPercent,
-        colorScheme,
-        format: imageFormat,
-        signal: abortController.signal,
-        onManualReady: manual ? awaitManualCapture : undefined,
-        onWarnings: (value) => {
-          warnings = value;
-        },
-        onShotSaved: (shotId, dataUrl) => {
-          previews[shotId] = dataUrl;
-          recordCapture(shotId);
-        },
-        onShotUpdate(update) {
-          if (update.status === 'navigating') {
-            manualSaved = false;
-            manualError = '';
-          }
-          if (update.status === 'complete') manualSaved = true;
-          if (manual && update.status === 'failed')
-            manualError = update.detail ?? 'Capture failed.';
-          shotStates[update.shotId] = { status: update.status, error: update.detail };
-          currentUrl = update.currentUrl;
-          setJobStatus(update.status, statusLabels[update.status]);
-        },
-        onProgress: setProgress,
-      });
+      const result: CaptureJobResult = {
+        completed: 0,
+        skipped: 0,
+        failures: [],
+        stopped: false,
+        windowRetained: false,
+      };
+      const failuresByShot: Record<string, CaptureFailure[]> = {};
+      for (const [passIndex, pass] of passes.entries()) {
+        if (abortController.signal.aborted) {
+          result.stopped = true;
+          break;
+        }
+        const offset = passIndex * shots.length;
+        const subdirectory = [runFolder, multiViewport ? pass.id : undefined]
+          .filter(Boolean)
+          .join('/');
+        const passResult = await runCaptureJob({
+          profile,
+          baseUrl,
+          viewport: pass,
+          shots,
+          continueOnError,
+          retainWindowAfterFailure: retainWindow,
+          outputSubdirectory: subdirectory || undefined,
+          captureBeyondViewport,
+          fullPage: fullPageCapture,
+          pageZoomPercent,
+          colorScheme,
+          format: imageFormat,
+          signal: abortController.signal,
+          onManualReady: manual ? awaitManualCapture : undefined,
+          onWarnings: (value) => {
+            warnings = value;
+          },
+          onShotSaved: (shotId, dataUrl) => {
+            previews[shotId] = dataUrl;
+            recordCapture(shotId, pass.id);
+          },
+          onShotUpdate(update) {
+            if (update.status === 'navigating') {
+              manualSaved = false;
+              manualError = '';
+            }
+            if (update.status === 'complete') manualSaved = true;
+            if (manual && update.status === 'failed')
+              manualError = update.detail ?? 'Capture failed.';
+            shotStates[update.shotId] = { status: update.status, error: update.detail };
+            currentUrl = update.currentUrl;
+            setJobStatus(
+              update.status,
+              multiViewport
+                ? `${statusLabels[update.status]} · ${pass.label.split(' — ')[0]}`
+                : statusLabels[update.status],
+            );
+          },
+          onProgress: (completed) => setProgress(offset + completed, total),
+        });
+        result.completed += passResult.completed;
+        result.skipped = (result.skipped ?? 0) + (passResult.skipped ?? 0);
+        result.windowRetained ||= passResult.windowRetained;
+        for (const failure of passResult.failures) {
+          const labelled = multiViewport
+            ? { ...failure, message: `${pass.label}: ${failure.message}` }
+            : failure;
+          result.failures.push(labelled);
+          failuresByShot[failure.shotId] = [...(failuresByShot[failure.shotId] ?? []), labelled];
+        }
+        if (passResult.stopped) {
+          result.stopped = true;
+          break;
+        }
+        if (passResult.failures.length > 0 && !continueOnError) break;
+      }
+      // A later pass can succeed where an earlier one failed. Keep every failure visible.
+      for (const [shotId, failures] of Object.entries(failuresByShot)) {
+        shotStates[shotId] = {
+          status: 'failed',
+          error: failures.map((failure) => failure.message).join(' '),
+        };
+      }
 
       if (result.stopped) {
         setJobStatus('failed', 'Stopped');
@@ -472,7 +547,7 @@
         currentUrl = result.skipped
           ? `${result.skipped} shots skipped`
           : 'All selected shots finished';
-        footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/${runFolder ? `${runFolder}/` : ''}`;
+        footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/${runFolder ? `${runFolder}/` : ''}${multiViewport ? ` in ${passes.length} viewport folders` : ''}`;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -585,10 +660,10 @@
     return preferenceWriteQueue;
   }
 
-  function recordCapture(shotId: string): void {
+  function recordCapture(shotId: string, savedViewportId: string): void {
     captureLog[profile.id] = {
       ...captureLog[profile.id],
-      [shotId]: { savedAt: Date.now(), viewportId },
+      [shotId]: { savedAt: Date.now(), viewportId: savedViewportId },
     };
     const snapshot = $state.snapshot(captureLog);
     captureLogWriteQueue = captureLogWriteQueue
@@ -780,6 +855,27 @@
                 viewport.deviceScaleFactor} output at {viewport.deviceScaleFactor}× DPR.
             {/if}
           </p>
+          <details class="advanced-options" open={extraViewportIds.length > 0}>
+            <summary>
+              Also capture at{extraViewports.length > 0 ? ` (${extraViewports.length})` : ''}
+            </summary>
+            {#each VIEWPORTS.filter((candidate) => candidate.id !== viewportId) as candidate (candidate.id)}
+              <label class="check-row compact-row">
+                <input
+                  class="checkbox checkbox-sm checkbox-primary"
+                  type="checkbox"
+                  checked={extraViewportIds.includes(candidate.id)}
+                  disabled={!ready || running}
+                  onchange={(event) =>
+                    toggleExtraViewport(candidate.id, event.currentTarget.checked)}
+                />
+                <span><strong>{candidate.label}</strong></span>
+              </label>
+            {/each}
+            <p class="field-help">
+              Each viewport saves into its own folder, named by viewport, under the output folder.
+            </p>
+          </details>
         </div>
 
         <div class="field-group">

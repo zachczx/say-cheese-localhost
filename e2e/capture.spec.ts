@@ -128,3 +128,18 @@ test('PNG format saves lossless images at the same size', async ({ controller })
   const [card] = await savedPixels(controller, cardX, cardY);
   expect(isCardWhite(card!)).toBe(true);
 });
+
+test('extra viewports capture each shot once per viewport', async ({ controller }) => {
+  await controller.getByRole('checkbox', { name: /Prepare each shot manually/ }).uncheck();
+  await controller.getByText('Also capture at').click();
+  await controller.getByRole('checkbox', { name: 'Desktop — 1440 × 1000' }).check();
+  await controller.getByRole('checkbox', { name: 'Select Fixture details' }).uncheck();
+  await controller.getByRole('button', { name: 'Capture 1 shot' }).click();
+
+  await expect(controller.locator(footer)).toContainText('2 images saved', { timeout: 90_000 });
+  await expect(controller.locator(footer)).toContainText('in 2 viewport folders');
+  expect(await savedImages(controller)).toEqual([
+    { width: 1290, height: 2796 },
+    { width: 1440, height: 1000 },
+  ]);
+});

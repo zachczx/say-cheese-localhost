@@ -138,6 +138,11 @@ Enable **Capture full page** to sweep lazy content, restore the prepared scroll 
 Under **Advanced**, **Render beyond the viewport** lays the page out at its full height while
 capturing the current view. Try it if content is clipped. Fixed top and bottom bars may move.
 
+Under **Viewport**, **Also capture at** adds more viewports to the run. Each shot is then
+captured once per viewport, and each viewport saves into its own folder named by its preset,
+for example `Downloads/say-cheese-localhost/cubby/desktop/`. With only one viewport selected,
+files stay directly in the output folder.
+
 Files with the same name are overwritten by default, so a profile's output folder always holds
 the latest images. Enable **Save each run in its own folder** to keep earlier runs. Each run
 then writes beneath a local date and time folder, for example

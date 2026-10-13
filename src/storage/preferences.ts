@@ -14,6 +14,8 @@ export interface Preferences {
   colorScheme: ColorScheme;
   imageFormat: ImageFormat;
   separateRunFolders: boolean;
+  /** Viewports captured in addition to the main one, each into its own folder. */
+  extraViewportIds: string[];
   pageZoomPercent: number;
 }
 
