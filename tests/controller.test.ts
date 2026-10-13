@@ -326,6 +326,48 @@ describe('controller', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Next shot' }));
   });
 
+  it('records when each shot was saved and shows it on the next load', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-13T06:02:00Z'));
+    try {
+      runCaptureJobMock.mockImplementationOnce(async (options) => {
+        options.onShotSaved?.('fixture-overview', 'data:image/webp;base64,UklGRg==');
+        return { completed: 1, failures: [], stopped: false, windowRetained: false };
+      });
+      const { unmount } = render(App);
+      await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+      const saved = await screen.findByText(/^Saved /);
+      expect(saved.tagName).toBe('TIME');
+      expect(saved.getAttribute('datetime')).toBe('2026-10-13T06:02:00.000Z');
+      expect(saved.getAttribute('title')).toBe('Saved at iPhone 14 Pro Max — 430 × 932');
+      await waitFor(() =>
+        expect(storageSetMock).toHaveBeenCalledWith({
+          'say-cheese-localhost.captures.v1': {
+            'local-demo': {
+              'fixture-overview': {
+                savedAt: Date.parse('2026-10-13T06:02:00Z'),
+                viewportId: 'phone',
+              },
+            },
+          },
+        }),
+      );
+      unmount();
+
+      const log = storageSetMock.mock.calls.find(
+        ([items]) => 'say-cheese-localhost.captures.v1' in items,
+      )?.[0];
+      storageGetMock.mockImplementation(async (key: string) =>
+        key === 'say-cheese-localhost.captures.v1' ? log : {},
+      );
+      render(App);
+      const restored = await screen.findByText(/^Saved /);
+      expect(restored.closest('tr')?.textContent).toContain('Fixture overview');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('labels the final manual step as Finish', async () => {
     runCaptureJobMock.mockImplementationOnce(async (options) => {
       const shot = options.shots[0]!;
