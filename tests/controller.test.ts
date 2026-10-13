@@ -218,8 +218,13 @@ describe('controller', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('fixture-details: Timed out.');
-    expect(screen.getByText('Fixture details').closest('tr')?.dataset.status).toBe('failed');
+    expect(alert.textContent).toContain('1 shot failed. Each reason is shown in the shot queue.');
+    const row = screen.getByText('Fixture details').closest('tr')!;
+    expect(row.dataset.status).toBe('failed');
+    expect(within(row).getByText('Timed out.')).toBeTruthy();
+    expect(within(row).getByText('Failed').getAttribute('aria-describedby')).toBe(
+      'shot-error-fixture-details',
+    );
 
     expect(screen.getByRole('button', { name: 'Retry Fixture details' })).toBeTruthy();
     await fireEvent.click(within(alert).getByRole('button', { name: 'Retry 1 unfinished shot' }));

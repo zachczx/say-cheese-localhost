@@ -393,9 +393,10 @@
         setJobStatus('failed', 'Stopped');
         footerSummary = `Stopped after ${result.completed} completed ${result.completed === 1 ? 'shot' : 'shots'}.`;
       } else if (result.failures.length > 0) {
-        setJobStatus('failed', `${result.failures.length} failed`);
+        const count = result.failures.length;
+        setJobStatus('failed', `${count} failed`);
         showError(
-          result.failures.map((failure) => `${failure.shotId}: ${failure.message}`).join(' '),
+          `${count} ${count === 1 ? 'shot' : 'shots'} failed. Each reason is shown in the shot queue.`,
         );
         footerSummary = result.windowRetained
           ? 'The capture window was left open for inspection.'
@@ -956,10 +957,19 @@
                   <span class="shot-title">{shot.label}</span>
                   <span class="shot-file">{shot.filename}</span>
                   {#if shot.preparation}<span class="shot-file">{shot.preparation}</span>{/if}
+                  {#if state.status === 'failed' && state.error}
+                    <p class="shot-error" id={`shot-error-${shot.id}`}>{state.error}</p>
+                  {/if}
                 </td>
                 <td><code class="route-code" title={shot.path}>{shot.path}</code></td>
                 <td class="status-column">
-                  <span class="status-badge" data-status={state.status} title={state.error}>
+                  <span
+                    class="status-badge"
+                    data-status={state.status}
+                    aria-describedby={state.status === 'failed' && state.error
+                      ? `shot-error-${shot.id}`
+                      : undefined}
+                  >
                     {statusLabels[state.status]}
                   </span>
                 </td>
