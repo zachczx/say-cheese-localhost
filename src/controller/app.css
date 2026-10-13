@@ -605,6 +605,26 @@ input[type='url'] {
   line-height: 1.4;
 }
 
+/* Advanced options */
+.advanced-options {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+.advanced-options summary {
+  padding: 6px 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.advanced-options summary:hover {
+  background-color: var(--surface-subtle);
+}
+
 /* Output note */
 .output-note.config-card {
   display: flex;

@@ -747,20 +747,25 @@
             ></span
           >
         </label>
-        <label class="check-row">
-          <input
-            class="checkbox checkbox-sm checkbox-primary"
-            type="checkbox"
-            checked={fullPageCapture || captureBeyondViewport}
-            disabled={!ready || running || fullPageCapture}
-            onchange={(event) => updateCaptureBeyondViewport(event.currentTarget.checked)}
-          />
-          <span
-            ><strong>Capture beyond viewport</strong><small
-              >Allow layout expansion beyond viewport bounds. Full-page capture always enables this.</small
-            ></span
-          >
-        </label>
+        <details class="advanced-options" open={captureBeyondViewport}>
+          <summary>Advanced</summary>
+          <label class="check-row">
+            <input
+              class="checkbox checkbox-sm checkbox-primary"
+              type="checkbox"
+              checked={fullPageCapture || captureBeyondViewport}
+              disabled={!ready || running || fullPageCapture}
+              onchange={(event) => updateCaptureBeyondViewport(event.currentTarget.checked)}
+            />
+            <span
+              ><strong>Render beyond the viewport</strong><small
+                >Lays the page out at its full height while capturing the current view. Try this if
+                content is clipped. Fixed top and bottom bars may move. Full-page capture always
+                does this.</small
+              ></span
+            >
+          </label>
+        </details>
       </fieldset>
 
       <fieldset class="run-options config-card">
