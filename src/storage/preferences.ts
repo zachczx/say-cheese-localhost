@@ -7,6 +7,7 @@ export interface Preferences {
   retainWindowAfterFailure: boolean;
   captureBeyondViewport: boolean;
   fullPageCapture: boolean;
+  manualPreparation: boolean;
   pageZoomPercent: number;
 }
 

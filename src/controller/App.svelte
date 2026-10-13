@@ -148,6 +148,7 @@
       retainWindowAfterFailure: stored.retainWindowAfterFailure ?? false,
       captureBeyondViewport: stored.captureBeyondViewport ?? false,
       fullPageCapture: stored.fullPageCapture ?? false,
+      manualPreparation: stored.manualPreparation ?? true,
       pageZoomPercent: normalizePageZoomPercent(stored.pageZoomPercent),
     };
     preferences = loadedPreferences;
@@ -163,6 +164,7 @@
     retainWindow = loadedPreferences.retainWindowAfterFailure;
     captureBeyondViewport = loadedPreferences.captureBeyondViewport;
     fullPageCapture = loadedPreferences.fullPageCapture;
+    manual = loadedPreferences.manualPreparation;
     pageZoomPercent = loadedPreferences.pageZoomPercent;
     pageZoomInput = String(loadedPreferences.pageZoomPercent);
     pageZoomInvalid = false;
@@ -285,6 +287,13 @@
     captureBeyondViewport = value;
     if (!preferences) return;
     preferences.captureBeyondViewport = value;
+    void persist();
+  }
+
+  function updateManualPreparation(value: boolean): void {
+    manual = value;
+    if (!preferences) return;
+    preferences.manualPreparation = value;
     void persist();
   }
 
@@ -704,8 +713,9 @@
           <input
             class="checkbox checkbox-sm checkbox-primary"
             type="checkbox"
-            bind:checked={manual}
-            disabled={running}
+            checked={manual}
+            disabled={!ready || running}
+            onchange={(event) => updateManualPreparation(event.currentTarget.checked)}
           />
           <span
             ><strong>Prepare each shot manually</strong><small
