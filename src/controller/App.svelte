@@ -17,7 +17,7 @@
   import { PROFILES } from '../profiles';
   import {
     loadImportedProfiles,
-    parseProfileImport,
+    readProfileFile,
     saveImportedProfiles,
     sortProfiles,
   } from '../profiles/imported';
@@ -55,6 +55,8 @@
   let importInput = $state<HTMLInputElement>();
   let importMessage = $state('');
   let importErrors = $state<string[]>([]);
+  // If stored imports could not be read, saving would overwrite them, so importing waits for a reload.
+  let importsUnavailable = $state(false);
 
   let profile = $state<CaptureProfile>(initialProfile);
   let profileId = $state(initialProfile.id);
@@ -188,9 +190,23 @@
     // Read both before applying: saved settings may select an imported profile.
     const [stored, imported] = await Promise.allSettled([
       loadPreferences(),
-      loadImportedProfiles(),
+      loadImportedProfiles(PROFILES),
     ]);
-    importedProfiles = imported.status === 'fulfilled' ? imported.value : [];
+    if (imported.status === 'fulfilled') {
+      importedProfiles = imported.value.profiles;
+      const { dropped } = imported.value;
+      if (dropped > 0) {
+        importMessage =
+          dropped === 1
+            ? 'One imported profile was removed because it is no longer valid or is now built in.'
+            : `${dropped} imported profiles were removed because they are no longer valid or are now built in.`;
+        void saveImportedProfiles(imported.value.profiles).catch(() => undefined);
+      }
+    } else {
+      importsUnavailable = true;
+      importMessage =
+        'Imported profiles could not be loaded. Importing is off until the controller reopens.';
+    }
     try {
       if (stored.status === 'rejected') throw stored.reason;
       applyPreferences(stored.value);
@@ -246,10 +262,10 @@
   async function importProfile(input: HTMLInputElement): Promise<void> {
     const file = input.files?.[0];
     input.value = '';
-    if (!file) return;
+    if (!file || importsUnavailable) return;
     importMessage = '';
     importErrors = [];
-    const result = parseProfileImport(await file.text(), PROFILES, importedProfiles);
+    const result = await readProfileFile(file, PROFILES, importedProfiles);
     if ('errors' in result) {
       importErrors = result.errors;
       return;
@@ -272,14 +288,24 @@
 
   async function removeImportedProfile(): Promise<void> {
     const removed = importedProfiles.find((candidate) => candidate.id === profileId);
-    if (!removed) return;
+    if (!removed || importsUnavailable) return;
     const confirmed =
       globalThis.confirm?.(
         `Remove the imported profile "${removed.label}"? Images already saved are not affected.`,
       ) ?? true;
     if (!confirmed) return;
-    importedProfiles = importedProfiles.filter((candidate) => candidate.id !== removed.id);
-    await saveImportedProfiles($state.snapshot(importedProfiles)).catch(() => undefined);
+    const remaining = importedProfiles.filter((candidate) => candidate.id !== removed.id);
+    try {
+      await saveImportedProfiles($state.snapshot(remaining));
+    } catch {
+      importMessage = `"${removed.label}" could not be removed. Try again.`;
+      return;
+    }
+    importedProfiles = remaining;
+    if (preferences) {
+      delete preferences.baseUrls[removed.id];
+      delete preferences.selectedShots[removed.id];
+    }
     importMessage = `Removed "${removed.label}".`;
     switchProfile(initialProfile.id);
   }
@@ -859,14 +885,14 @@
             <button
               class="quiet-button btn btn-ghost btn-sm"
               type="button"
-              disabled={!ready || running}
+              disabled={!ready || running || importsUnavailable}
               onclick={() => importInput?.click()}>Import profile…</button
             >
             {#if profileIsImported}
               <button
                 class="quiet-button btn btn-ghost btn-sm"
                 type="button"
-                disabled={!ready || running}
+                disabled={!ready || running || importsUnavailable}
                 onclick={removeImportedProfile}>Remove imported profile</button
               >
             {/if}

@@ -9,9 +9,16 @@ import { VIEWPORTS } from './viewports';
  */
 const STORAGE_KEY = 'say-cheese-localhost.imported-profiles.v1';
 const MAX_IMPORT_BYTES = 256 * 1024;
+const TOO_LARGE = 'The file is larger than 256 KB, which is too large for a profile.';
 
 export type ProfileImportResult =
   { profile: CaptureProfile; replaced: boolean } | { errors: string[] };
+
+export interface StoredImports {
+  profiles: CaptureProfile[];
+  /** Stored profiles that no longer pass validation or now share a built-in profile's ID. */
+  dropped: number;
+}
 
 export function sortProfiles(profiles: readonly CaptureProfile[]): CaptureProfile[] {
   return [...profiles].sort(
@@ -21,18 +28,44 @@ export function sortProfiles(profiles: readonly CaptureProfile[]): CaptureProfil
   );
 }
 
-export async function loadImportedProfiles(): Promise<CaptureProfile[]> {
+export async function loadImportedProfiles(
+  bundled: readonly CaptureProfile[],
+): Promise<StoredImports> {
   const result = await chrome.storage.local.get(STORAGE_KEY);
-  const stored = result[STORAGE_KEY];
-  if (!Array.isArray(stored)) return [];
-  // Re-validate on load: the schema may have tightened since the import.
-  return stored.filter(
-    (candidate): candidate is CaptureProfile => checkProfile(candidate).length === 0,
-  );
+  const stored: unknown = result[STORAGE_KEY];
+  if (!Array.isArray(stored)) return { profiles: [], dropped: 0 };
+  // Re-validate on load: the schema may have tightened since the import, or a
+  // later build may bundle a profile with the same ID.
+  const taken = new Set(bundled.map((profile) => profile.id));
+  const profiles: CaptureProfile[] = [];
+  for (const candidate of stored) {
+    if (checkProfile(candidate).length > 0) continue;
+    const profile = candidate as CaptureProfile;
+    if (taken.has(profile.id)) continue;
+    taken.add(profile.id);
+    profiles.push(profile);
+  }
+  return { profiles, dropped: stored.length - profiles.length };
 }
 
 export async function saveImportedProfiles(profiles: readonly CaptureProfile[]): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: profiles });
+}
+
+/** Reads a picked file, refusing oversized files before loading them into memory. */
+export async function readProfileFile(
+  file: Blob,
+  bundled: readonly CaptureProfile[],
+  imported: readonly CaptureProfile[],
+): Promise<ProfileImportResult> {
+  if (file.size > MAX_IMPORT_BYTES) return { errors: [TOO_LARGE] };
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    return { errors: ['The file could not be read.'] };
+  }
+  return parseProfileImport(text, bundled, imported);
 }
 
 /** Parses and validates a manifest file's text against the profiles already available. */
@@ -41,9 +74,7 @@ export function parseProfileImport(
   bundled: readonly CaptureProfile[],
   imported: readonly CaptureProfile[],
 ): ProfileImportResult {
-  if (text.length > MAX_IMPORT_BYTES) {
-    return { errors: ['The file is larger than 256 KB, which is too large for a profile.'] };
-  }
+  if (text.length > MAX_IMPORT_BYTES) return { errors: [TOO_LARGE] };
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -62,57 +93,13 @@ export function parseProfileImport(
 }
 
 function checkProfile(value: unknown): string[] {
-  const shapeErrors = checkShape(value);
-  if (shapeErrors.length > 0) return shapeErrors;
-  const profile = value as CaptureProfile;
-  const errors = validateProfile(profile, VIEWPORTS);
-  if (profile.requestReplacements?.length) {
+  const errors = validateProfile(value as CaptureProfile, VIEWPORTS);
+  const replacements = (value as { requestReplacements?: unknown } | null)?.requestReplacements;
+  if (Array.isArray(replacements) && replacements.length > 0) {
     errors.push(
       'Imported profiles cannot use requestReplacements, because replacement images must be bundled.',
     );
   }
-  return errors;
-}
-
-/** Guards the structure validateProfile relies on, since imported JSON is untrusted. */
-function checkShape(value: unknown): string[] {
-  if (!isRecord(value)) return ['The file must contain one profile object.'];
-  const errors: string[] = [];
-  for (const key of ['id', 'label', 'defaultBaseUrl', 'outputDirectory', 'defaultViewport']) {
-    if (typeof value[key] !== 'string') errors.push(`The profile needs a "${key}" string.`);
-  }
-  if (!Array.isArray(value.shots)) {
-    errors.push('The profile needs a "shots" list.');
-    return errors;
-  }
-  value.shots.forEach((shot, index) => {
-    if (!isRecord(shot)) {
-      errors.push(`Shot ${index + 1} must be an object.`);
-      return;
-    }
-    for (const key of ['id', 'label', 'path', 'filename']) {
-      if (typeof shot[key] !== 'string') {
-        errors.push(`Shot ${index + 1} needs a "${key}" string.`);
-      }
-    }
-    if (typeof shot.enabledByDefault !== 'boolean') {
-      errors.push(`Shot ${index + 1} needs "enabledByDefault" set to true or false.`);
-    }
-    for (const key of ['ready', 'actions']) {
-      if (shot[key] !== undefined && !Array.isArray(shot[key])) {
-        errors.push(`Shot ${index + 1} "${key}" must be a list.`);
-      }
-    }
-  });
-  if (value.requestReplacements !== undefined && !Array.isArray(value.requestReplacements)) {
-    errors.push('"requestReplacements" must be a list.');
-  }
-  if (value.timeouts !== undefined && !isRecord(value.timeouts)) {
-    errors.push('"timeouts" must be an object.');
-  }
-  return errors;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  // Several shots can fail the same way; list each problem once.
+  return [...new Set(errors)];
 }

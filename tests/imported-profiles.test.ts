@@ -1,7 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PROFILES } from '../src/profiles';
-import { parseProfileImport, sortProfiles } from '../src/profiles/imported';
+import {
+  loadImportedProfiles,
+  parseProfileImport,
+  readProfileFile,
+  sortProfiles,
+} from '../src/profiles/imported';
 import type { CaptureProfile } from '../src/profiles/schema';
 
 function manifest(overrides: Record<string, unknown> = {}): string {
@@ -39,7 +44,7 @@ describe('profile import', () => {
       errors: ['The file is not valid JSON.'],
     });
     expect(parseProfileImport('[]', PROFILES, [])).toEqual({
-      errors: ['The file must contain one profile object.'],
+      errors: ['The profile must be a JSON object.'],
     });
     expect(parseProfileImport(manifest({ id: 7, shots: 'none' }), PROFILES, [])).toEqual({
       errors: ['The profile needs a "id" string.', 'The profile needs a "shots" list.'],
@@ -67,6 +72,66 @@ describe('profile import', () => {
     expect(parseProfileImport(manifest({ id: 'cubby' }), PROFILES, [])).toEqual({
       errors: ['A built-in profile already uses the ID "cubby". Choose another ID.'],
     });
+  });
+
+  it('reports malformed nested fields instead of throwing', () => {
+    const shot = { id: 'home', label: 'Home', path: '/', filename: 'home.webp' };
+    expect(
+      parseProfileImport(
+        manifest({ shots: [{ ...shot, enabledByDefault: true, actions: [null] }] }),
+        PROFILES,
+        [],
+      ),
+    ).toEqual({ errors: ['Shot "home" action 1 uses an unsupported type.'] });
+  });
+
+  it('lists a repeated problem once', () => {
+    const blank = { id: '', label: 'Blank', path: '/', enabledByDefault: true };
+    const result = parseProfileImport(
+      manifest({
+        shots: [
+          { ...blank, filename: 'a.webp' },
+          { ...blank, filename: 'b.webp' },
+        ],
+      }),
+      PROFILES,
+      [],
+    );
+    const errors = (result as { errors: string[] }).errors;
+    expect(errors.filter((error) => error === 'Shot ID is required.')).toHaveLength(1);
+    expect(new Set(errors).size).toBe(errors.length);
+  });
+
+  it('refuses oversized files before reading them and reports unreadable ones', async () => {
+    const text = vi.fn(async () => '{}');
+    const huge = { size: 300 * 1024, text } as unknown as Blob;
+    await expect(readProfileFile(huge, PROFILES, [])).resolves.toEqual({
+      errors: ['The file is larger than 256 KB, which is too large for a profile.'],
+    });
+    expect(text).not.toHaveBeenCalled();
+
+    const unreadable = {
+      size: 10,
+      text: async () => {
+        throw new Error('NotReadableError');
+      },
+    } as unknown as Blob;
+    await expect(readProfileFile(unreadable, PROFILES, [])).resolves.toEqual({
+      errors: ['The file could not be read.'],
+    });
+  });
+
+  it('drops stored profiles that are invalid or now share a built-in ID', async () => {
+    const lingo = JSON.parse(manifest()) as CaptureProfile;
+    const stored = [lingo, { id: 'broken' }, { ...lingo, id: 'cubby' }, { ...lingo }];
+    vi.stubGlobal('chrome', {
+      storage: { local: { get: async (key: string) => ({ [key]: stored }) } },
+    });
+    await expect(loadImportedProfiles(PROFILES)).resolves.toEqual({
+      profiles: [lingo],
+      dropped: 3,
+    });
+    vi.unstubAllGlobals();
   });
 
   it('sorts imported profiles after ordered bundled profiles', () => {

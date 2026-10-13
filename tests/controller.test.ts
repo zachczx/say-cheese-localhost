@@ -22,6 +22,25 @@ let storageGetMock: Mock;
 let storageSetMock: Mock;
 const runtimeListeners = new Set<(message: unknown) => void>();
 
+function lingoFile(): File {
+  return new File(
+    [
+      JSON.stringify({
+        id: 'lingo',
+        label: 'Lingo',
+        defaultBaseUrl: 'http://127.0.0.1:5180',
+        outputDirectory: 'say-cheese-localhost/lingo',
+        defaultViewport: 'phone',
+        shots: [
+          { id: 'home', label: 'Home', path: '/', filename: 'home.webp', enabledByDefault: true },
+        ],
+      }),
+    ],
+    'lingo.json',
+    { type: 'application/json' },
+  );
+}
+
 describe('controller', () => {
   beforeEach(() => {
     runCaptureJobMock.mockReset();
@@ -120,24 +139,8 @@ describe('controller', () => {
     vi.stubGlobal('confirm', () => true);
     render(App);
     await screen.findByRole('button', { name: 'Open 2 shots' });
-    const file = new File(
-      [
-        JSON.stringify({
-          id: 'lingo',
-          label: 'Lingo',
-          defaultBaseUrl: 'http://127.0.0.1:5180',
-          outputDirectory: 'say-cheese-localhost/lingo',
-          defaultViewport: 'phone',
-          shots: [
-            { id: 'home', label: 'Home', path: '/', filename: 'home.webp', enabledByDefault: true },
-          ],
-        }),
-      ],
-      'lingo.json',
-      { type: 'application/json' },
-    );
     await fireEvent.change(screen.getByLabelText('Profile manifest file'), {
-      target: { files: [file] },
+      target: { files: [lingoFile()] },
     });
 
     expect(await screen.findByText('Imported "Lingo".')).toBeTruthy();
@@ -148,11 +151,56 @@ describe('controller', () => {
       'say-cheese-localhost.imported-profiles.v1': [expect.objectContaining({ id: 'lingo' })],
     });
 
+    // A saved selection for the profile is forgotten along with it.
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Select Home' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Remove imported profile' }));
     expect(await screen.findByText('Removed "Lingo".')).toBeTruthy();
+    const savedPreferences = storageSetMock.mock.calls
+      .map(([items]) => (items as Record<string, unknown>)['say-cheese-localhost.preferences.v1'])
+      .filter(Boolean)
+      .at(-1) as { selectedShots: Record<string, string[]> };
+    expect(savedPreferences.selectedShots).not.toHaveProperty('lingo');
     expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('local-demo');
     expect(screen.queryByRole('option', { name: 'Lingo (imported)' })).toBeNull();
     vi.unstubAllGlobals();
+  });
+
+  it('keeps an imported profile and its settings when removal cannot be saved', async () => {
+    vi.stubGlobal('confirm', () => true);
+    render(App);
+    await screen.findByRole('button', { name: 'Open 2 shots' });
+    await fireEvent.change(screen.getByLabelText('Profile manifest file'), {
+      target: { files: [lingoFile()] },
+    });
+    expect(await screen.findByText('Imported "Lingo".')).toBeTruthy();
+
+    storageSetMock.mockImplementation(async (items: Record<string, unknown>) => {
+      if ('say-cheese-localhost.imported-profiles.v1' in items) throw new Error('Quota exceeded');
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove imported profile' }));
+    expect(await screen.findByText('"Lingo" could not be removed. Try again.')).toBeTruthy();
+    expect((screen.getByLabelText('Project') as HTMLSelectElement).value).toBe('lingo');
+    expect(screen.getByRole('option', { name: 'Lingo (imported)' })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  it('turns importing off when stored imports cannot be loaded', async () => {
+    storageGetMock.mockImplementation(async (key: string) => {
+      if (key === 'say-cheese-localhost.imported-profiles.v1')
+        throw new Error('Storage unavailable');
+      return {};
+    });
+    render(App);
+    expect(
+      await screen.findByText(
+        'Imported profiles could not be loaded. Importing is off until the controller reopens.',
+      ),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Import profile…' }) as HTMLButtonElement).disabled,
+      ).toBe(true),
+    );
   });
 
   it('explains why a profile could not be imported', async () => {
