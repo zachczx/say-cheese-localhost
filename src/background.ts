@@ -1,4 +1,11 @@
+import { closeWindowsOwnedBy } from './capture/orphans';
+
 const controllerUrl = chrome.runtime.getURL('controller/index.html');
+
+// A controller closed mid-run leaves its capture window debugged and emulated.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void closeWindowsOwnedBy(tabId).catch(() => undefined);
+});
 
 chrome.action.onClicked.addListener(async () => {
   const contexts = await chrome.runtime.getContexts({ documentUrls: [controllerUrl] });

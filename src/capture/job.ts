@@ -5,6 +5,7 @@ import { runActions, createCdpActionDriver } from './actions';
 import { DebuggerSession } from './debugger';
 import { applyEmulation, clearEmulation, type ColorScheme } from './emulation';
 import { navigateAndWait } from './navigation';
+import { forgetCaptureWindow, rememberCaptureWindow } from './orphans';
 import {
   evaluate,
   NetworkQuietTracker,
@@ -119,6 +120,13 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
     captureWindowId = captureWindow.id;
     const tabId = captureWindow.tabs?.[0]?.id;
     if (tabId === undefined) throw new Error('Chrome did not create a capture tab.');
+    if (captureWindowId !== undefined) {
+      // Lets the background worker clean up if the controller closes mid-run.
+      const ownerTabId = (await chrome.tabs.getCurrent?.().catch(() => undefined))?.id;
+      await rememberCaptureWindow({ windowId: captureWindowId, tabId, ownerTabId }).catch(
+        () => undefined,
+      );
+    }
 
     await retryWhileTabInitializes(() => applyPageZoom(tabId), jobController.signal);
     session = new DebuggerSession(tabId);
@@ -391,6 +399,9 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
       !stopped;
     if (!windowRetained && captureWindowId !== undefined) {
       await chrome.windows.remove(captureWindowId).catch(() => undefined);
+    }
+    if (captureWindowId !== undefined) {
+      await forgetCaptureWindow(captureWindowId).catch(() => undefined);
     }
   }
 

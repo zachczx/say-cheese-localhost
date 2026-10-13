@@ -80,6 +80,28 @@ describe('controller', () => {
     });
   });
 
+  it('asks before the controller closes during a run', async () => {
+    let finish: (() => void) | undefined;
+    runCaptureJobMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({ completed: 0, failures: [], stopped: false, windowRetained: false });
+        }),
+    );
+    render(App);
+    await screen.findByRole('button', { name: 'Open 2 shots' });
+    const idle = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(idle);
+    expect(idle.defaultPrevented).toBe(false);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 2 shots' }));
+    const busy = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(busy);
+    expect(busy.defaultPrevented).toBe(true);
+    finish?.();
+  });
+
   it('offers a single Open downloads action', async () => {
     render(App);
     await screen.findByRole('button', { name: 'Open 2 shots' });

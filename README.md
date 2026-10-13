@@ -148,4 +148,8 @@ the latest images. Enable **Save each run in its own folder** to keep earlier ru
 then writes beneath a local date and time folder, for example
 `Downloads/say-cheese-localhost/demo/2026-10-13_014502/`.
 
+Closing the controller during a run asks for confirmation first. If it closes anyway, the
+background worker detaches the debugger and closes that run's capture window. The next
+controller to open also cleans up any capture window left behind.
+
 By default, a completed or stopped job closes its capture window. Users may retain the window after a failure for inspection. Debugger detachment and emulation cleanup still occur before the window is retained.

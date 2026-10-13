@@ -10,6 +10,7 @@
   import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
   import { outputFilename, type ImageFormat } from '../capture/screenshot';
   import { runFolderName } from '../storage/run-folder';
+  import { closeOrphanedCaptureWindows } from '../capture/orphans';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -175,6 +176,12 @@
       captureLog = await loadCaptureLog();
     } catch {
       captureLog = {};
+    }
+    try {
+      const currentTabId = (await chrome.tabs.getCurrent?.())?.id;
+      await closeOrphanedCaptureWindows(currentTabId);
+    } catch {
+      // Cleanup is best-effort; the controller still works without it.
     } finally {
       ready = true;
       scheduleAutoPing(0);
@@ -406,6 +413,13 @@
 
   function toggleAll(checked: boolean): void {
     setSelection(checked ? profile.shots.map((shot) => shot.id) : []);
+  }
+
+  function handleBeforeUnload(event: BeforeUnloadEvent): void {
+    // Closing the controller mid-run abandons the capture. Ask first.
+    if (!running) return;
+    event.preventDefault();
+    event.returnValue = '';
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -713,7 +727,7 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onbeforeunload={handleBeforeUnload} />
 
 <header class="app-header">
   <div class="header-meta">

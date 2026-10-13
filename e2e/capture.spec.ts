@@ -143,3 +143,18 @@ test('extra viewports capture each shot once per viewport', async ({ controller 
     { width: 1440, height: 1000 },
   ]);
 });
+
+test('closing the controller mid-run closes its capture window', async ({
+  context,
+  controller,
+}) => {
+  await controller.getByRole('button', { name: 'Open 2 shots' }).click();
+  await controller
+    .getByRole('button', { name: 'Capture current view' })
+    .waitFor({ timeout: 60_000 });
+  const capturePages = () => context.pages().filter((page) => page.url().includes('/fixture/'));
+  expect(capturePages()).toHaveLength(1);
+
+  await controller.close();
+  await expect.poll(() => capturePages().length, { timeout: 15_000 }).toBe(0);
+});

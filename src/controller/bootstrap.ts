@@ -19,6 +19,9 @@ if (location.protocol !== 'chrome-extension:') {
       async create() {
         return undefined;
       },
+      async getCurrent() {
+        return undefined;
+      },
     },
   };
   Object.defineProperty(globalThis, 'chrome', {
