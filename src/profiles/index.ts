@@ -17,9 +17,6 @@ export function loadProfiles(sources: Record<string, CaptureProfile>): CapturePr
   const seen = new Map<string, string>();
   const profiles = Object.entries(sources).map(([source, profile]) => {
     const problems = validateProfile(profile, VIEWPORTS);
-    if (profile.order !== undefined && !Number.isInteger(profile.order)) {
-      problems.push(`Profile "${profile.id}" order must be an integer.`);
-    }
     const duplicate = seen.get(profile.id);
     if (duplicate) problems.push(`Profile ID "${profile.id}" is also used by ${duplicate}.`);
     seen.set(profile.id, source);

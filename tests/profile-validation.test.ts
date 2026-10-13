@@ -110,6 +110,87 @@ describe('validateProfile', () => {
   });
 });
 
+describe('malformed manifests', () => {
+  const malformed = (value: unknown) => validateProfile(value as CaptureProfile, VIEWPORTS);
+
+  it('reports non-object timeouts and preflight instead of throwing', () => {
+    expect(malformed({ ...profile(), timeouts: null })).toEqual(['"timeouts" must be an object.']);
+    expect(malformed({ ...profile(), preflight: {} })).toEqual([
+      '"preflight" needs a "path" string and an "expected" object.',
+    ]);
+  });
+
+  it('reports malformed list items instead of throwing', () => {
+    const shot = profile().shots[0]!;
+    expect(
+      malformed({
+        ...profile(),
+        requestReplacements: [null],
+        shots: [{ ...shot, ready: [null], actions: [null, { type: 'click' }] }],
+      }),
+    ).toEqual([
+      'Request replacement 1 needs a "urlPattern" string and an "assetPaths" list of strings.',
+      'Shot "home" ready condition 1 needs a "type" of selector or url.',
+      'Shot "home" action 1 uses an unsupported type.',
+      'Shot "home" action 2 needs a "selector" string.',
+    ]);
+  });
+
+  it('rejects unknown ready types, actions, and capture modes', () => {
+    const shot = profile().shots[0]!;
+    expect(
+      malformed({
+        ...profile(),
+        shots: [
+          {
+            ...shot,
+            ready: [{ type: 'selecter', selector: '#app' }, { type: 'url' }],
+            actions: [{ type: 'hover', selector: '#menu' }],
+            capture: { mode: 'element', selector: 5 },
+          },
+        ],
+      }),
+    ).toEqual([
+      'Shot "home" capture "selector" must be a string.',
+      'Shot "home" ready condition 1 needs a "type" of selector or url.',
+      'Shot "home" ready condition 2 needs a "pattern" string.',
+      'Shot "home" action 1 uses an unsupported type "hover".',
+    ]);
+    expect(malformed({ ...profile(), shots: [{ ...shot, capture: { mode: 'page' } }] })).toEqual([
+      'Shot "home" "capture" needs a "mode" of viewport, full-page, or element.',
+    ]);
+  });
+
+  it('reports missing fields and non-object shots', () => {
+    expect(malformed(null)).toEqual(['The profile must be a JSON object.']);
+    expect(malformed({ ...profile(), label: 3, shots: [7] })).toEqual([
+      'The profile needs a "label" string.',
+      'Shot 1 must be an object.',
+    ]);
+  });
+
+  it('rejects non-numeric timeouts, offsets, and order', () => {
+    const shot = profile().shots[0]!;
+    expect(
+      malformed({
+        ...profile(),
+        order: 'first',
+        shots: [
+          {
+            ...shot,
+            ready: [{ type: 'selector', selector: '#app', timeoutMs: 'soon' }],
+            actions: [{ type: 'scroll-to', selector: '#list', topOffset: 'top' }],
+          },
+        ],
+      }),
+    ).toEqual([
+      'Profile "demo" order must be an integer.',
+      'Shot "home" has an invalid scroll offset.',
+      'Shot "home" has a non-positive readiness timeout.',
+    ]);
+  });
+});
+
 describe('viewport and route validation', () => {
   it('uses iPhone 14 Pro Max as the default phone size', () => {
     expect(VIEWPORTS.find((viewport) => viewport.id === 'phone')).toMatchObject({
