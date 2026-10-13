@@ -15,6 +15,12 @@
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
+  import {
+    loadImportedProfiles,
+    readProfileFile,
+    saveImportedProfiles,
+    sortProfiles,
+  } from '../profiles/imported';
   import type { CaptureProfile, Shot } from '../profiles/schema';
   import { VIEWPORTS } from '../profiles/viewports';
   import {
@@ -40,6 +46,17 @@
   import { statusLabels, type ShotState } from './status';
 
   const initialProfile = PROFILES[0] as CaptureProfile;
+  // Profiles imported from JSON files, kept in extension storage.
+  let importedProfiles = $state<CaptureProfile[]>([]);
+  const profiles = $derived(sortProfiles([...PROFILES, ...importedProfiles]));
+  const profileIsImported = $derived(
+    importedProfiles.some((candidate) => candidate.id === profileId),
+  );
+  let importInput = $state<HTMLInputElement>();
+  let importMessage = $state('');
+  let importErrors = $state<string[]>([]);
+  // If stored imports could not be read, saving would overwrite them, so importing waits for a reload.
+  let importsUnavailable = $state(false);
 
   let profile = $state<CaptureProfile>(initialProfile);
   let profileId = $state(initialProfile.id);
@@ -170,8 +187,29 @@
   }
 
   async function initialize(): Promise<void> {
+    // Read both before applying: saved settings may select an imported profile.
+    const [stored, imported] = await Promise.allSettled([
+      loadPreferences(),
+      loadImportedProfiles(PROFILES),
+    ]);
+    if (imported.status === 'fulfilled') {
+      importedProfiles = imported.value.profiles;
+      const { dropped } = imported.value;
+      if (dropped > 0) {
+        importMessage =
+          dropped === 1
+            ? 'One imported profile was removed because it is no longer valid or is now built in.'
+            : `${dropped} imported profiles were removed because they are no longer valid or are now built in.`;
+        void saveImportedProfiles(imported.value.profiles).catch(() => undefined);
+      }
+    } else {
+      importsUnavailable = true;
+      importMessage =
+        'Imported profiles could not be loaded. Importing is off until the controller reopens.';
+    }
     try {
-      applyPreferences(await loadPreferences());
+      if (stored.status === 'rejected') throw stored.reason;
+      applyPreferences(stored.value);
     } catch {
       applyPreferences({});
       settingsError = 'Saved settings could not be loaded. Safe defaults are active.';
@@ -193,9 +231,9 @@
   }
 
   function applyPreferences(stored: Partial<Preferences>): void {
-    const loadedPreferences = normalizePreferences(stored, PROFILES, VIEWPORTS);
+    const loadedPreferences = normalizePreferences(stored, profiles, VIEWPORTS);
     const storedProfile =
-      PROFILES.find((candidate) => candidate.id === loadedPreferences.profileId) ?? initialProfile;
+      profiles.find((candidate) => candidate.id === loadedPreferences.profileId) ?? initialProfile;
     profile = storedProfile;
     profileId = storedProfile.id;
     preferences = loadedPreferences;
@@ -221,9 +259,60 @@
     resetShotStates();
   }
 
+  async function importProfile(input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || importsUnavailable) return;
+    importMessage = '';
+    importErrors = [];
+    const result = await readProfileFile(file, PROFILES, importedProfiles);
+    if ('errors' in result) {
+      importErrors = result.errors;
+      return;
+    }
+    const { profile: imported, replaced } = result;
+    importedProfiles = [
+      ...importedProfiles.filter((candidate) => candidate.id !== imported.id),
+      imported,
+    ];
+    try {
+      await saveImportedProfiles($state.snapshot(importedProfiles));
+    } catch {
+      settingsError =
+        'The imported profile could not be saved. It lasts until this controller closes.';
+    }
+    importMessage = `${replaced ? 'Updated' : 'Imported'} "${imported.label}".`;
+    if (replaced && profileId === imported.id) profileId = '';
+    switchProfile(imported.id);
+  }
+
+  async function removeImportedProfile(): Promise<void> {
+    const removed = importedProfiles.find((candidate) => candidate.id === profileId);
+    if (!removed || importsUnavailable) return;
+    const confirmed =
+      globalThis.confirm?.(
+        `Remove the imported profile "${removed.label}"? Images already saved are not affected.`,
+      ) ?? true;
+    if (!confirmed) return;
+    const remaining = importedProfiles.filter((candidate) => candidate.id !== removed.id);
+    try {
+      await saveImportedProfiles($state.snapshot(remaining));
+    } catch {
+      importMessage = `"${removed.label}" could not be removed. Try again.`;
+      return;
+    }
+    importedProfiles = remaining;
+    if (preferences) {
+      delete preferences.baseUrls[removed.id];
+      delete preferences.selectedShots[removed.id];
+    }
+    importMessage = `Removed "${removed.label}".`;
+    switchProfile(initialProfile.id);
+  }
+
   function switchProfile(nextProfileId: string): void {
     if (running || !preferences) return;
-    const next = PROFILES.find((candidate) => candidate.id === nextProfileId);
+    const next = profiles.find((candidate) => candidate.id === nextProfileId);
     if (!next) return;
 
     profile = next;
@@ -784,10 +873,48 @@
             disabled={!ready || running}
             onchange={(event) => switchProfile(event.currentTarget.value)}
           >
-            {#each PROFILES as candidate (candidate.id)}
-              <option value={candidate.id}>{candidate.label}</option>
+            {#each profiles as candidate (candidate.id)}
+              <option value={candidate.id}
+                >{candidate.label}{importedProfiles.some((item) => item.id === candidate.id)
+                  ? ' (imported)'
+                  : ''}</option
+              >
             {/each}
           </select>
+          <div class="profile-actions">
+            <button
+              class="quiet-button btn btn-ghost btn-sm"
+              type="button"
+              disabled={!ready || running || importsUnavailable}
+              onclick={() => importInput?.click()}>Import profile…</button
+            >
+            {#if profileIsImported}
+              <button
+                class="quiet-button btn btn-ghost btn-sm"
+                type="button"
+                disabled={!ready || running || importsUnavailable}
+                onclick={removeImportedProfile}>Remove imported profile</button
+              >
+            {/if}
+            <input
+              class="sr-only"
+              type="file"
+              accept=".json,application/json"
+              aria-label="Profile manifest file"
+              tabindex="-1"
+              bind:this={importInput}
+              onchange={(event) => void importProfile(event.currentTarget)}
+            />
+          </div>
+          {#if importMessage}<p class="field-help" role="status">{importMessage}</p>{/if}
+          {#if importErrors.length > 0}
+            <div class="field-error" role="alert">
+              <p>The profile was not imported:</p>
+              <ul>
+                {#each importErrors as error (error)}<li>{error}</li>{/each}
+              </ul>
+            </div>
+          {/if}
         </div>
 
         <div class="field-group">

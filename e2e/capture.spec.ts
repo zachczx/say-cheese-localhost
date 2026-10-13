@@ -177,3 +177,38 @@ test('the capture command message captures from the capture window', async ({
   const [card] = await savedPixels(controller, cardX, cardY);
   expect(isCardWhite(card!)).toBe(true);
 });
+
+test('an imported profile captures like a bundled one', async ({ controller }) => {
+  await controller.getByLabel('Profile manifest file').setInputFiles({
+    name: 'imported.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        id: 'imported-fixture',
+        label: 'Imported fixture',
+        defaultBaseUrl: 'http://127.0.0.1:5199',
+        outputDirectory: 'say-cheese-localhost/imported',
+        defaultViewport: 'desktop',
+        shots: [
+          {
+            id: 'overview',
+            label: 'Overview',
+            path: '/fixture/',
+            filename: 'imported-01-overview.webp',
+            enabledByDefault: true,
+          },
+        ],
+      }),
+    ),
+  });
+  await expect(controller.getByText('Imported "Imported fixture".')).toBeVisible();
+  await controller.getByRole('checkbox', { name: /Prepare each shot manually/ }).uncheck();
+  await controller.getByRole('button', { name: 'Capture 1 shot' }).click();
+
+  await expect(controller.locator(footer)).toContainText(
+    '1 image saved to Downloads/say-cheese-localhost/imported/',
+    { timeout: 90_000 },
+  );
+  // The profile's default desktop viewport applies: 1440 × 1000 at 1× DPR.
+  expect(await savedImages(controller)).toEqual([{ width: 1440, height: 1000 }]);
+});

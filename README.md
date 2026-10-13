@@ -101,6 +101,15 @@ so adding a project means adding a folder and rebuilding:
    and profiles without one sort last by label.
 4. Run `pnpm build` and reload the extension.
 
+To try a profile without rebuilding, choose **Import profile…** under Project and pick its
+`manifest.json`. Imported profiles pass the same validation, are kept in extension storage, and
+are marked "(imported)". They cannot use `requestReplacements`, because replacement images must
+be bundled, and their IDs cannot match a built-in profile. Importing a file with the same `id`
+again updates it. **Remove imported profile** deletes the stored copy and its saved base URL and
+shot selection; images already saved stay in Downloads. When the controller opens, it removes
+stored profiles that no longer pass validation or whose ID a built-in profile now uses, and says
+how many.
+
 The build fails with the manifest path and every problem if a profile is invalid or reuses
 another profile's `id`. Each build also copies the manifests to `dist/profiles/<folder>/`.
 [`docs/profiles.md`](docs/profiles.md) documents every field, including timeouts, readiness
