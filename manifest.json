@@ -21,5 +21,11 @@
   },
   "action": {
     "default_title": "Open Say Cheese Localhost"
+  },
+  "commands": {
+    "capture-current-view": {
+      "suggested_key": { "default": "Alt+Shift+C" },
+      "description": "Capture the current view while preparing a shot"
+    }
   }
 }

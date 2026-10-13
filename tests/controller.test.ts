@@ -20,6 +20,7 @@ const runCaptureJobMock = vi.mocked(runCaptureJob);
 const pingAddressMock = vi.mocked(pingAddress);
 let storageGetMock: Mock;
 let storageSetMock: Mock;
+const runtimeListeners = new Set<(message: unknown) => void>();
 
 describe('controller', () => {
   beforeEach(() => {
@@ -38,6 +39,16 @@ describe('controller', () => {
         },
         tabs: {
           create: vi.fn(async () => undefined),
+        },
+        runtime: {
+          onMessage: {
+            addListener: (listener: (message: unknown) => void) => runtimeListeners.add(listener),
+            removeListener: (listener: (message: unknown) => void) =>
+              runtimeListeners.delete(listener),
+          },
+        },
+        commands: {
+          getAll: async () => [{ name: 'capture-current-view', shortcut: 'Alt+Shift+C' }],
         },
       },
     });
@@ -388,6 +399,19 @@ describe('controller', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('captures when the keyboard shortcut fires from the capture window', async () => {
+    runCaptureJobMock.mockImplementationOnce(async (options) => {
+      const shot = options.shots[0]!;
+      expect(await options.onManualReady!(shot, options.signal!)).toBe('capture');
+      return { completed: 1, failures: [], stopped: false, windowRetained: false };
+    });
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
+    expect(await screen.findByText('Alt+Shift+C')).toBeTruthy();
+    for (const listener of runtimeListeners) listener({ type: 'capture-current-view' });
+    await waitFor(() => expect(screen.queryByText('Alt+Shift+C')).toBeNull());
   });
 
   it('labels the final manual step as Finish', async () => {

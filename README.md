@@ -131,6 +131,11 @@ and pixel dimensions. Previews last until the controller closes or the project c
 Each row also shows when its image was last saved. That time persists across sessions, and its
 tooltip names the viewport used.
 
+The capture window opens beside the controller when the screen has room. While preparing a
+shot, press the capture shortcut in the capture window to capture without switching back. Chrome
+suggests **Alt+Shift+C** but leaves it unassigned if it conflicts. Set or change it at
+`chrome://extensions/shortcuts`. The preparation panel shows the active shortcut when one is set.
+
 Turn off manual preparation to use the existing batch route/actions flow. Only batch preparation sweeps the document and resets scroll. Manual capture checks images in the capture area without moving the page. Failed images block saving; page exceptions and failed local API requests appear as warnings for human review. A saved image still needs visual inspection.
 
 Enable **Capture full page** to sweep lazy content, restore the prepared scroll position, and capture the complete document as one continuous WebP. Full-page output keeps the selected viewport width and has a variable height based on the rendered document.
