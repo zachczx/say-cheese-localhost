@@ -243,7 +243,20 @@ export async function restoreDocumentScroll(
   session: DebuggerSession,
   position: ScrollPosition,
 ): Promise<void> {
-  await evaluate(session, `window.scrollTo(${position.x}, ${position.y})`);
+  await evaluate(session, scrollToScript(position.x, position.y));
+}
+
+/**
+ * Scroll positions come back from the page, so coerce them to finite numbers
+ * before interpolating them into an expression that runs in the page.
+ */
+export function scrollToScript(x: unknown, y: unknown): string {
+  const left = Number(x);
+  const top = Number(y);
+  if (!Number.isFinite(left) || !Number.isFinite(top)) {
+    throw new Error('Scroll position must be finite numbers.');
+  }
+  return `window.scrollTo(${left}, ${top})`;
 }
 
 export async function waitForDocumentAssets(
