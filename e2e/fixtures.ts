@@ -21,6 +21,9 @@ export const test = base.extend<ExtensionFixtures>({
     const context = await chromium.launchPersistentContext(userDataDir, {
       channel: 'chromium',
       headless: true,
+      // Playwright would otherwise emulate its own viewport on every page,
+      // including the extension's capture window, and fight its emulation.
+      viewport: null,
       acceptDownloads: true,
       args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
     });
@@ -53,22 +56,61 @@ export interface SavedImage {
   height: number;
 }
 
-/** Reads every completed download and decodes its pixel dimensions in Chromium. */
-export async function savedImages(controller: Page): Promise<SavedImage[]> {
+type Rgb = [number, number, number];
+
+async function decodeDownloads<T>(
+  controller: Page,
+  read: (data: string) => Promise<T>,
+): Promise<T[]> {
   const items = await controller.evaluate(() =>
     chrome.downloads.search({ orderBy: ['startTime'], state: 'complete' }),
   );
-  const images: SavedImage[] = [];
-  for (const item of items) {
-    const base64 = readFileSync(item.filename).toString('base64');
-    images.push(
-      await controller.evaluate(async (data) => {
+  const results: T[] = [];
+  for (const item of items)
+    results.push(await read(readFileSync(item.filename).toString('base64')));
+  return results;
+}
+
+/** Reads every completed download and decodes its pixel dimensions in Chromium. */
+export function savedImages(controller: Page): Promise<SavedImage[]> {
+  return decodeDownloads(controller, (data) =>
+    controller.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = `data:image/webp;base64,${base64}`;
+      await image.decode();
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    }, data),
+  );
+}
+
+/** Samples each saved image at a CSS-pixel point, scaled by the 3× phone DPR. */
+export function savedPixels(controller: Page, x: number, y: number): Promise<Rgb[]> {
+  return decodeDownloads(controller, (data) =>
+    controller.evaluate(
+      async ({ base64, x, y }) => {
         const image = new Image();
-        image.src = `data:image/webp;base64,${data}`;
+        image.src = `data:image/webp;base64,${base64}`;
         await image.decode();
-        return { width: image.naturalWidth, height: image.naturalHeight };
-      }, base64),
-    );
-  }
-  return images;
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext('2d')!;
+        context.drawImage(image, 0, 0);
+        const [r, g, b] = context.getImageData(x * 3, y * 3, 1, 1).data;
+        return [r!, g!, b!] as Rgb;
+      },
+      { base64: data, x, y },
+    ),
+  );
+}
+
+/**
+ * The fixture's first card sits around CSS y 460–640 and is lighter (#fffdf8)
+ * than the page background (#f3efe4). A partially painted capture repeats the
+ * page's top band instead, so the card's pixels come back as background.
+ */
+export const FIXTURE_CARD_POINT = { x: 215, y: 600 } as const;
+
+export function isCardWhite([r, g, b]: Rgb): boolean {
+  return r >= 250 && g >= 248 && b >= 240;
 }

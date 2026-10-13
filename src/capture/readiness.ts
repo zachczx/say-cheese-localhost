@@ -239,6 +239,27 @@ export async function prepareDocument(
   return originalScroll ?? undefined;
 }
 
+/**
+ * Waits for the page to produce two animation frames so the compositor has a
+ * fully painted frame before a screenshot. Without this, a capture that follows
+ * focus, zoom, or style changes can read a partially rasterized surface in which
+ * the top band repeats down the image. Hidden pages never fire animation frames,
+ * so give up after `timeoutMs` and let the capture proceed as before.
+ */
+export async function waitForPaint(session: DebuggerSession, timeoutMs = 1_000): Promise<boolean> {
+  return evaluate<boolean>(
+    session,
+    `new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), ${Number(timeoutMs)});
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve(true);
+      }));
+    })`,
+    true,
+  );
+}
+
 export async function restoreDocumentScroll(
   session: DebuggerSession,
   position: ScrollPosition,

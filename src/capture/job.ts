@@ -12,6 +12,7 @@ import {
   restoreDocumentScroll,
   type ScrollPosition,
   waitForDocumentAssets,
+  waitForPaint,
   waitForReadyConditions,
 } from './readiness';
 import { RequestReplacementInterceptor } from './requests';
@@ -262,6 +263,8 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   );
                   await interceptor?.waitForIdle(signal);
                   if (!options.onManualReady && shot.settleMs) await delay(shot.settleMs, signal);
+                  throwIfAborted(signal);
+                  await waitForPaint(session as DebuggerSession);
                   throwIfAborted(signal);
                   update(options, shot, 'capturing', currentUrl);
                   const dataUrl = await captureShot(session as DebuggerSession, shot, {

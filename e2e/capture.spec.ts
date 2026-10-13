@@ -1,4 +1,13 @@
-import { expect, savedImages, test } from './fixtures';
+import {
+  expect,
+  FIXTURE_CARD_POINT,
+  isCardWhite,
+  savedImages,
+  savedPixels,
+  test,
+} from './fixtures';
+
+const { x: cardX, y: cardY } = FIXTURE_CARD_POINT;
 
 const footer = '.capture-footer';
 
@@ -14,6 +23,8 @@ test('batch capture writes iPhone 14 Pro Max images at 1290 × 2796', async ({
     { width: 1290, height: 2796 },
     { width: 1290, height: 2796 },
   ]);
+  const [overview] = await savedPixels(controller, cardX, cardY);
+  expect(isCardWhite(overview!)).toBe(true);
   // The dedicated capture window closes after a successful run.
   await expect
     .poll(() => context.pages().filter((page) => page.url().includes('/fixture/')).length)
@@ -43,6 +54,8 @@ test('full-page capture keeps viewport width and grows with the document', async
   expect(image?.width).toBe(1290);
   // The fixture body is at least 150vh tall.
   expect(image?.height).toBeGreaterThanOrEqual(Math.floor(932 * 1.5 * 3));
+  const [card] = await savedPixels(controller, cardX, cardY);
+  expect(isCardWhite(card!)).toBe(true);
 });
 
 test('manual preparation captures, retakes, and skips on request', async ({ controller }) => {
@@ -64,4 +77,7 @@ test('manual preparation captures, retakes, and skips on request', async ({ cont
     { width: 1290, height: 2796 },
     { width: 1290, height: 2796 },
   ]);
+  // Both the capture and the retake show the fully painted page, not a repeated top band.
+  const pixels = await savedPixels(controller, cardX, cardY);
+  expect(pixels.map(isCardWhite)).toEqual([true, true]);
 });

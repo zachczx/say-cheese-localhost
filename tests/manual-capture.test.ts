@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   waitDownload: vi.fn(),
   waitAssets: vi.fn(),
+  waitPaint: vi.fn(),
   applyZoom: vi.fn(),
   detach: vi.fn(),
   send: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('../src/capture/readiness', () => ({
   prepareDocument: mocks.prepare,
   restoreDocumentScroll: mocks.restoreScroll,
   waitForDocumentAssets: mocks.waitAssets,
+  waitForPaint: mocks.waitPaint,
   waitForReadyConditions: vi.fn(),
   NetworkQuietTracker: class {
     start() {}
@@ -75,6 +77,7 @@ describe('manual capture lifecycle', () => {
     mocks.download.mockResolvedValue(1);
     mocks.waitDownload.mockResolvedValue(undefined);
     mocks.waitAssets.mockResolvedValue(undefined);
+    mocks.waitPaint.mockResolvedValue(true);
     mocks.applyZoom.mockResolvedValue(undefined);
     mocks.prepare.mockResolvedValue(undefined);
     mocks.restoreScroll.mockResolvedValue(undefined);
@@ -86,6 +89,21 @@ describe('manual capture lifecycle', () => {
       },
       tabs: { setZoom: vi.fn() },
     });
+  });
+
+  it('waits for a painted frame before every capture', async () => {
+    await runCaptureJob({
+      ...options(),
+      onManualReady: vi
+        .fn()
+        .mockResolvedValueOnce('capture')
+        .mockResolvedValueOnce('capture')
+        .mockResolvedValueOnce('next'),
+    });
+    expect(mocks.waitPaint).toHaveBeenCalledTimes(2);
+    for (const [index, order] of mocks.capture.mock.invocationCallOrder.entries()) {
+      expect(mocks.waitPaint.mock.invocationCallOrder[index]).toBeLessThan(order);
+    }
   });
 
   it('retakes the prepared view without navigating or sweeping again', async () => {
