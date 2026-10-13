@@ -439,6 +439,17 @@
     setProgress(0, total);
     setJobStatus('preparing', 'Opening capture window');
     currentUrl = 'Preparing localhost target…';
+    const failuresByShot: Record<string, CaptureFailure[]> = {};
+    // A later pass can succeed where an earlier one failed, or throw before it
+    // reports. Keep every failure visible either way.
+    const showEveryFailure = () => {
+      for (const [shotId, failures] of Object.entries(failuresByShot)) {
+        shotStates[shotId] = {
+          status: 'failed',
+          error: failures.map((failure) => failure.message).join(' '),
+        };
+      }
+    };
 
     try {
       const result: CaptureJobResult = {
@@ -448,7 +459,6 @@
         stopped: false,
         windowRetained: false,
       };
-      const failuresByShot: Record<string, CaptureFailure[]> = {};
       for (const [passIndex, pass] of passes.entries()) {
         if (abortController.signal.aborted) {
           result.stopped = true;
@@ -516,13 +526,7 @@
         }
         if (passResult.failures.length > 0 && !continueOnError) break;
       }
-      // A later pass can succeed where an earlier one failed. Keep every failure visible.
-      for (const [shotId, failures] of Object.entries(failuresByShot)) {
-        shotStates[shotId] = {
-          status: 'failed',
-          error: failures.map((failure) => failure.message).join(' '),
-        };
-      }
+      showEveryFailure();
 
       if (result.stopped) {
         setJobStatus('failed', 'Stopped');
@@ -544,6 +548,7 @@
         footerSummary = `${result.completed} ${result.completed === 1 ? 'image' : 'images'} saved to Downloads/${profile.outputDirectory}/${runFolder ? `${runFolder}/` : ''}${multiViewport ? ` in ${passes.length} viewport folders` : ''}`;
       }
     } catch (error) {
+      showEveryFailure();
       const message = error instanceof Error ? error.message : String(error);
       setJobStatus('failed', 'Capture failed');
       showError(message);

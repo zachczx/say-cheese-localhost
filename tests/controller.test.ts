@@ -578,6 +578,30 @@ describe('controller', () => {
     });
   });
 
+  it('keeps earlier viewport failures when a later pass throws', async () => {
+    runCaptureJobMock
+      .mockImplementationOnce(async () => ({
+        completed: 1,
+        failures: [{ shotId: 'fixture-details', currentUrl: '', message: 'Timed out.' }],
+        stopped: false,
+        windowRetained: false,
+      }))
+      .mockImplementationOnce(async (options) => {
+        options.onShotUpdate?.({ shotId: 'fixture-details', status: 'navigating', currentUrl: '' });
+        throw new Error('Chrome detached the capture debugger (target_closed).');
+      });
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Desktop — 1440 × 1000' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: /Prepare each shot manually/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Capture 2 shots' }));
+
+    expect(await screen.findByText(/target_closed/)).toBeTruthy();
+    const row = (await screen.findByText('iPhone 14 Pro Max — 430 × 932: Timed out.')).closest(
+      'tr',
+    );
+    expect(row?.dataset.status).toBe('failed');
+  });
+
   it('saves each run in its own dated folder when asked', async () => {
     runCaptureJobMock.mockResolvedValue({
       completed: 2,
