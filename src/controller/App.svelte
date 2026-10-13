@@ -84,6 +84,8 @@
   let running = $state(false);
   let stopping = $state(false);
   let lastRunShotIds = $state<string[]>([]);
+  // False while extra viewport passes remain, so their last shot does not read "Finish".
+  let onFinalPass = $state(true);
   let progressCompleted = $state(0);
   let progressTotal = $state(initialProfile.shots.length);
   let currentUrl = $state('Ready to capture');
@@ -102,7 +104,7 @@
     ),
   );
   const manualIsLastShot = $derived(
-    manualShot !== undefined && lastRunShotIds.at(-1) === manualShot.id,
+    manualShot !== undefined && onFinalPass && lastRunShotIds.at(-1) === manualShot.id,
   );
   const previewShot = $derived(profile.shots.find((shot) => shot.id === previewShotId));
   const viewport = $derived(
@@ -453,6 +455,7 @@
           break;
         }
         const offset = passIndex * shots.length;
+        onFinalPass = passIndex === passes.length - 1;
         const subdirectory = [runFolder, multiViewport ? pass.id : undefined]
           .filter(Boolean)
           .join('/');
