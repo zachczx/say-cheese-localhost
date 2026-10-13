@@ -530,7 +530,13 @@ async function settleBeforeManualPreparation(
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error;
   }
-  await waitForPaint(session);
+  try {
+    await waitForPaint(session);
+  } catch (error) {
+    // A page that redirects right after loading destroys the evaluation
+    // context. The user is about to prepare the view anyway.
+    if (signal.aborted || isAbortError(error)) throw error;
+  }
 }
 
 const UNCOMMITTED_TAB_ERROR = 'Cannot access contents of the page';

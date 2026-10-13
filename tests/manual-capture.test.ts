@@ -191,6 +191,14 @@ describe('manual capture lifecycle', () => {
     expect(mocks.waitQuiet.mock.calls[0]?.[2]).toBe(5_000);
   });
 
+  it('still opens a manual shot when the page navigates during the paint wait', async () => {
+    mocks.waitPaint.mockRejectedValueOnce(new Error('Execution context was destroyed.'));
+    const ready = vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next');
+    const result = await runCaptureJob({ ...options(), onManualReady: ready });
+    expect(result.failures).toEqual([]);
+    expect(result.completed).toBe(1);
+  });
+
   it('waits for a painted frame before every capture', async () => {
     await runCaptureJob({
       ...options(),
