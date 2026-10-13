@@ -82,6 +82,21 @@ pnpm e2e
 
 Branded Chrome 137 and newer ignores `--load-extension`, so the suite uses Playwright's Chromium.
 
+## Add a profile
+
+Profiles are JSON manifests. The build bundles every `src/profiles/<folder>/manifest.json`,
+so adding a project means adding a folder and rebuilding:
+
+1. Copy `src/profiles/demo/manifest.json` to `src/profiles/<folder>/manifest.json`.
+2. Set a unique `id`, a `label`, the `defaultBaseUrl`, an `outputDirectory` beneath
+   `say-cheese-localhost/`, and the ordered `shots`.
+3. Optionally set `order` to position it in the project list. Lower numbers come first,
+   and profiles without one sort last by label.
+4. Run `pnpm build` and reload the extension.
+
+The build fails with the manifest path and every problem if a profile is invalid or reuses
+another profile's `id`. Each build also copies the manifests to `dist/profiles/<folder>/`.
+
 ## Profile safety
 
 - Base URLs are restricted to `localhost`, `*.localhost`, `127.0.0.1`, and `[::1]`.
@@ -152,12 +167,10 @@ editorial order:
 15. `growing-up` — `/app/growing-up`
 16. `journal-recap` — `/app/journal/recap`
 
-The hand-editable source of truth is `src/profiles/cubby/manifest.json`; a thin
-TypeScript adapter validates it against the same schema as every other profile.
-Each build also copies it to `dist/profiles/cubby/manifest.json` as standalone
-JSON.
-The Cubby profile is registered in the controller, so selecting **Cubby** shows
-the complete route queue. Use it with the verified synthetic QA environment described above.
+The hand-editable source of truth is `src/profiles/cubby/manifest.json`. It is
+validated against the same schema as every other profile, and each build also
+copies it to `dist/profiles/cubby/manifest.json` as standalone JSON. Selecting
+**Cubby** shows the complete route queue. Use it with the verified synthetic QA environment described above.
 
 Captured files use the project-prefixed editorial sequence
 `cubby-01-dashboard.webp` through `cubby-16-journal-recap.webp`, so their order

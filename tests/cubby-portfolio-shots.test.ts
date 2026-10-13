@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { PROFILES } from '../src/profiles';
-import { cubbyPortfolioShots } from '../src/profiles/cubby/shots';
 import { validateProfile } from '../src/profiles/schema';
 import { VIEWPORTS } from '../src/profiles/viewports';
+
+const cubbyPortfolioShots = PROFILES.find((profile) => profile.id === 'cubby')!.shots;
 
 const portfolioOrder = [
   'dashboard',

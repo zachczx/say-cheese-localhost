@@ -78,6 +78,8 @@ export function resolveTimeouts(timeouts?: CaptureTimeouts): Required<CaptureTim
 export interface CaptureProfile {
   id: string;
   label: string;
+  /** Position in the project list; lower comes first. Profiles without one sort last by label. */
+  order?: number;
   defaultBaseUrl: string;
   /** Short help shown under the Base URL field, for example how to start a QA server. */
   baseUrlHint?: string;
