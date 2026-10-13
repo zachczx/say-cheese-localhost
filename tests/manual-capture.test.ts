@@ -112,6 +112,18 @@ describe('manual capture lifecycle', () => {
     expect(mocks.navigate).toHaveBeenCalledOnce();
   });
 
+  it('closes the capture window when setup fails after the window opens', async () => {
+    mocks.applyZoom.mockRejectedValueOnce(new Error('Zoom failed.'));
+    await expect(runCaptureJob(options())).rejects.toThrow('Zoom failed.');
+    expect(mocks.remove).toHaveBeenCalledWith(1);
+  });
+
+  it('closes a capture window that Chrome created without a tab', async () => {
+    vi.mocked(chrome.windows.create).mockResolvedValueOnce({ id: 1, tabs: [] } as never);
+    await expect(runCaptureJob(options())).rejects.toThrow('Chrome did not create a capture tab.');
+    expect(mocks.remove).toHaveBeenCalledWith(1);
+  });
+
   it('writes into a run folder beneath the profile directory', async () => {
     await runCaptureJob({
       ...options(),
