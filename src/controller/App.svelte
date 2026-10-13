@@ -8,7 +8,7 @@
     type ShotStatus,
   } from '../capture/job';
   import { DEFAULT_TIMEZONE, type ColorScheme } from '../capture/emulation';
-  import { outputFilename, type ImageFormat } from '../capture/screenshot';
+  import type { ImageFormat } from '../capture/screenshot';
   import { runFolderName } from '../storage/run-folder';
   import { closeOrphanedCaptureWindows } from '../capture/orphans';
   import { normalizeLocalBaseUrl } from '../capture/url';
@@ -16,42 +16,28 @@
   import { PROFILES } from '../profiles';
   import type { CaptureProfile, Shot } from '../profiles/schema';
   import { VIEWPORTS } from '../profiles/viewports';
-  import { loadPreferences, savePreferences, type Preferences } from '../storage/preferences';
   import {
-    formatSavedAt,
-    loadCaptureLog,
-    saveCaptureLog,
-    type CaptureLog,
-  } from '../storage/captures';
+    loadPreferences,
+    normalizePreferences,
+    savePreferences,
+    type Preferences,
+  } from '../storage/preferences';
+  import { loadCaptureLog, saveCaptureLog, type CaptureLog } from '../storage/captures';
   import {
     DEFAULT_PAGE_ZOOM_PERCENT,
     MAX_PAGE_ZOOM_PERCENT,
     MIN_PAGE_ZOOM_PERCENT,
-    normalizePageZoomPercent,
   } from '../capture/zoom';
   import IconCamera from '~icons/lucide/camera';
   import IconDownload from '~icons/lucide/download';
   import IconInfo from '~icons/lucide/info';
-  import IconRefresh from '~icons/lucide/refresh-cw';
+  import ConnectionStatus from './components/ConnectionStatus.svelte';
+  import ManualPreparation from './components/ManualPreparation.svelte';
+  import PreviewDialog from './components/PreviewDialog.svelte';
+  import RunStatus from './components/RunStatus.svelte';
+  import ShotQueue from './components/ShotQueue.svelte';
+  import { statusLabels, type ShotState } from './status';
 
-  interface ShotState {
-    status: ShotStatus;
-    error?: string;
-  }
-
-  const statusLabels: Record<ShotStatus, string> = {
-    pending: 'Pending',
-    waiting: 'Prepare manually',
-    skipped: 'Skipped',
-    navigating: 'Navigating',
-    preparing: 'Preparing',
-    capturing: 'Capturing',
-    downloading: 'Downloading',
-    complete: 'Complete',
-    failed: 'Failed',
-  };
-
-  const activeStatuses: ShotStatus[] = ['navigating', 'preparing', 'capturing', 'downloading'];
   const initialProfile = PROFILES[0] as CaptureProfile;
 
   let profile = $state<CaptureProfile>(initialProfile);
@@ -92,8 +78,7 @@
   let captureLog = $state<CaptureLog>({});
   let captureLogWriteQueue = Promise.resolve();
   let previewShotId = $state<string>();
-  let previewSize = $state('');
-  let previewDialog = $state<HTMLDialogElement>();
+  let previewDialog = $state<ReturnType<typeof PreviewDialog>>();
   let chooseManual: ((action: 'capture' | 'next') => void) | undefined;
   let ready = $state(false);
   let running = $state(false);
@@ -110,8 +95,6 @@
   let preferenceWriteQueue = Promise.resolve();
 
   const selectedCount = $derived(selectedIds.length);
-  const allSelected = $derived(profile.shots.length > 0 && selectedCount === profile.shots.length);
-  const partiallySelected = $derived(selectedCount > 0 && !allSelected);
   // Shots from the last run that neither saved nor were deliberately skipped.
   const unfinishedShotIds = $derived(
     lastRunShotIds.filter(
@@ -206,36 +189,13 @@
   }
 
   function applyPreferences(stored: Partial<Preferences>): void {
+    const loadedPreferences = normalizePreferences(stored, PROFILES, VIEWPORTS);
     const storedProfile =
-      PROFILES.find((candidate) => candidate.id === stored.profileId) ?? initialProfile;
-
+      PROFILES.find((candidate) => candidate.id === loadedPreferences.profileId) ?? initialProfile;
     profile = storedProfile;
     profileId = storedProfile.id;
-    const loadedPreferences: Preferences = {
-      profileId: storedProfile.id,
-      viewportId: stored.viewportId ?? storedProfile.defaultViewport,
-      baseUrls: stored.baseUrls ?? {},
-      selectedShots: stored.selectedShots ?? {},
-      continueOnError: stored.continueOnError ?? true,
-      retainWindowAfterFailure: stored.retainWindowAfterFailure ?? false,
-      captureBeyondViewport: stored.captureBeyondViewport ?? false,
-      fullPageCapture: stored.fullPageCapture ?? false,
-      manualPreparation: stored.manualPreparation ?? true,
-      pageZoomPercent: normalizePageZoomPercent(stored.pageZoomPercent),
-      colorScheme: ['light', 'dark'].includes(stored.colorScheme as string)
-        ? (stored.colorScheme as ColorScheme)
-        : 'system',
-      imageFormat: stored.imageFormat === 'png' ? 'png' : 'webp',
-      separateRunFolders: stored.separateRunFolders ?? false,
-      extraViewportIds: Array.isArray(stored.extraViewportIds)
-        ? stored.extraViewportIds.filter((id) => VIEWPORTS.some((candidate) => candidate.id === id))
-        : [],
-    };
     preferences = loadedPreferences;
-
-    viewportId = VIEWPORTS.some((candidate) => candidate.id === loadedPreferences.viewportId)
-      ? loadedPreferences.viewportId
-      : storedProfile.defaultViewport;
+    viewportId = loadedPreferences.viewportId;
     baseUrl = loadedPreferences.baseUrls[storedProfile.id] ?? storedProfile.defaultBaseUrl;
     clearTimeout(pingDebounceTimer);
     pingAbortController?.abort();
@@ -704,16 +664,7 @@
 
   function openPreview(shotId: string): void {
     previewShotId = shotId;
-    previewSize = '';
-    if (!previewDialog || previewDialog.open) return;
-    if (typeof previewDialog.showModal === 'function') previewDialog.showModal();
-    else previewDialog.setAttribute('open', '');
-  }
-
-  function closePreview(): void {
-    if (typeof previewDialog?.close === 'function') previewDialog.close();
-    else previewDialog?.removeAttribute('open');
-    previewShotId = undefined;
+    previewDialog?.show();
   }
 
   function openDownloads(): void {
@@ -819,45 +770,13 @@
             oninput={(event) => updateBaseUrl(event.currentTarget.value)}
             onblur={() => validateBaseUrl(true)}
           />
-          {#if pinging}
-            <div class="ping-status ping-status-pending" role="status" aria-live="polite">
-              <span class="loading loading-spinner loading-xs" aria-hidden="true"></span>
-              <span>Checking connection…</span>
-            </div>
-          {:else if pingResult}
-            <div
-              class="ping-status"
-              class:ping-status-success={pingResult.reachable}
-              class:ping-status-error={!pingResult.reachable}
-              role="status"
-              aria-live="polite"
-            >
-              <span class="ping-dot" aria-hidden="true"></span>
-              {#if pingResult.reachable}
-                <span class="ping-message">
-                  <strong>Up</strong> · {pingResult.latencyMs}ms{pingResult.status
-                    ? ` (HTTP ${pingResult.status})`
-                    : ''}
-                </span>
-              {:else}
-                <span class="ping-message">
-                  <strong>Down</strong> · {pingResult.error ?? 'Connection refused'}
-                  {#if !running}
-                    · Retrying every 30 seconds.{/if}
-                </span>
-              {/if}
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm btn-square"
-                aria-label={pingResult.reachable ? 'Check again' : 'Retry now'}
-                title={pingResult.reachable ? 'Check again' : 'Retry now'}
-                disabled={!ready || running}
-                onclick={() => void runPing()}
-              >
-                <IconRefresh aria-hidden="true" />
-              </button>
-            </div>
-          {/if}
+          <ConnectionStatus
+            {pinging}
+            result={pingResult}
+            {ready}
+            {running}
+            onRetry={() => void runPing()}
+          />
           <p class="field-help" id="base-url-help">
             {profile.baseUrlHint ?? 'Only localhost and loopback addresses are accepted.'}
           </p>
@@ -1117,60 +1036,19 @@
       </div>
 
       {#if manualShot}
-        {@const savedPreview = manualSaved ? previews[manualShot.id] : undefined}
         {@const preparedShot = manualShot}
-        <div class="manual-preparation" aria-live="polite">
-          <div class="manual-copy">
-            <strong>{manualShot.label}</strong>
-            <p>
-              {manualShot.preparation ??
-                (fullPageCapture
-                  ? 'Arrange the page content, then capture the complete document.'
-                  : 'Arrange the capture window, then capture the current view.')}
-            </p>
-            <p>
-              {manualError && manualSaved
-                ? 'An earlier image was saved, but the latest attempt failed.'
-                : manualSaved
-                  ? 'Image saved. You can retake it or move on.'
-                  : fullPageCapture
-                    ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
-                    : 'Navigate and scroll freely. Capture keeps your current framing.'}
-            </p>
-            {#if manualError}<p role="alert">{manualError} Correct the page and retry here.</p>{/if}
-            {#if captureShortcut}
-              <p class="manual-shortcut">
-                Or press <kbd>{captureShortcut}</kbd> in the capture window to capture without switching
-                back.
-              </p>
-            {/if}
-            <div class="capture-actions">
-              <button
-                class="primary-button btn btn-primary"
-                type="button"
-                onclick={() => chooseManual?.('capture')}
-                >{manualSaved ? 'Retake' : 'Capture'}
-                {fullPageCapture ? 'full page' : 'current view'}</button
-              >
-              <button
-                class="quiet-button btn btn-ghost"
-                type="button"
-                onclick={() => chooseManual?.('next')}
-                >{manualSaved ? (manualIsLastShot ? 'Finish' : 'Next shot') : 'Skip shot'}</button
-              >
-            </div>
-          </div>
-          {#if savedPreview}
-            <button
-              class="manual-preview"
-              type="button"
-              aria-label={`Open saved image for ${preparedShot.label}`}
-              onclick={() => openPreview(preparedShot.id)}
-            >
-              <img src={savedPreview} alt="" />
-            </button>
-          {/if}
-        </div>
+        <ManualPreparation
+          shot={preparedShot}
+          saved={manualSaved}
+          error={manualError}
+          fullPage={fullPageCapture}
+          isLastShot={manualIsLastShot}
+          preview={previews[preparedShot.id]}
+          shortcut={captureShortcut}
+          onCapture={() => chooseManual?.('capture')}
+          onNext={() => chooseManual?.('next')}
+          onPreview={() => openPreview(preparedShot.id)}
+        />
       {/if}
       {#if warnings.length > 0}
         <div class="settings-warning" role="status">
@@ -1181,27 +1059,13 @@
         </div>
       {/if}
 
-      <div class="run-status" aria-live="polite">
-        <div class="telemetry-tile progress-block">
-          <div class="status-label-row">
-            <span>Overall progress</span>
-            <strong>{progressCompleted} / {progressTotal}</strong>
-          </div>
-          <progress
-            class="progress progress-warning"
-            value={progressCompleted}
-            max={Math.max(progressTotal, 1)}
-          ></progress>
-        </div>
-        <div class="telemetry-tile current-location">
-          <span>Current URL</span>
-          <strong title={currentUrl}>{currentUrl}</strong>
-        </div>
-        <div class="telemetry-tile current-state">
-          <span>Status</span>
-          <strong data-status={jobStatus}>{jobStatusLabel}</strong>
-        </div>
-      </div>
+      <RunStatus
+        completed={progressCompleted}
+        total={progressTotal}
+        {currentUrl}
+        status={jobStatus}
+        label={jobStatusLabel}
+      />
 
       {#if errorMessage}
         <div class="error-banner alert alert-error" role="alert">
@@ -1223,150 +1087,29 @@
         </div>
       {/if}
 
-      <div class="queue-header">
-        <div>
-          <h2 id="queue-title">Shot queue</h2>
-          <p>{profile.shots.length} ordered shots · {selectedCount} selected</p>
-        </div>
-      </div>
-
-      <div class="shot-table-wrap">
-        <table class="shot-table">
-          <thead>
-            <tr>
-              <th class="order-column">Order</th>
-              <th>Shot</th>
-              <th>Route</th>
-              <th class="status-column">Status</th>
-              <th class="retry-column"><span class="sr-only">Actions</span></th>
-              <th class="select-column">
-                <input
-                  class="checkbox checkbox-sm checkbox-primary"
-                  type="checkbox"
-                  checked={allSelected}
-                  indeterminate={partiallySelected}
-                  disabled={!ready || running || profile.shots.length === 0}
-                  aria-label={allSelected ? 'Clear all shot selections' : 'Select all shots'}
-                  title={allSelected ? 'Clear all selections' : 'Select all shots'}
-                  onchange={(event) => toggleAll(event.currentTarget.checked)}
-                />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each profile.shots as shot, index (shot.id)}
-              {@const state = shotStates[shot.id] ?? { status: 'pending' }}
-              <tr data-status={state.status} data-active={activeStatuses.includes(state.status)}>
-                <td class="order-column">{String(index + 1).padStart(2, '0')}</td>
-                <td>
-                  <div class="shot-cell">
-                    {#if previews[shot.id]}
-                      <button
-                        class="shot-thumb"
-                        type="button"
-                        aria-label={`Preview ${shot.label}`}
-                        onclick={() => openPreview(shot.id)}
-                      >
-                        <img src={previews[shot.id]} alt="" />
-                      </button>
-                    {/if}
-                    <div class="shot-text">
-                      <span class="shot-title">{shot.label}</span>
-                      <span class="shot-file">{shot.filename}</span>
-                      {#if shot.preparation}<span class="shot-file">{shot.preparation}</span>{/if}
-                      {#if captureLog[profile.id]?.[shot.id]}
-                        {@const record = captureLog[profile.id]![shot.id]!}
-                        <time
-                          class="shot-saved"
-                          datetime={new Date(record.savedAt).toISOString()}
-                          title={`Saved at ${VIEWPORTS.find((candidate) => candidate.id === record.viewportId)?.label ?? record.viewportId}`}
-                          >Saved {formatSavedAt(record.savedAt)}</time
-                        >
-                      {/if}
-                      {#if state.status === 'failed' && state.error}
-                        <p class="shot-error" id={`shot-error-${shot.id}`}>{state.error}</p>
-                      {/if}
-                    </div>
-                  </div>
-                </td>
-                <td><code class="route-code" title={shot.path}>{shot.path}</code></td>
-                <td class="status-column">
-                  <span
-                    class="status-badge"
-                    data-status={state.status}
-                    aria-describedby={state.status === 'failed' && state.error
-                      ? `shot-error-${shot.id}`
-                      : undefined}
-                  >
-                    {statusLabels[state.status]}
-                  </span>
-                </td>
-                <td class="retry-column">
-                  {#if state.status === 'failed'}
-                    <button
-                      class="retry-shot btn btn-ghost btn-sm"
-                      type="button"
-                      disabled={running}
-                      aria-label={`Retry ${shot.label}`}
-                      onclick={() => void startCapture([shot])}
-                    >
-                      Retry
-                    </button>
-                  {/if}
-                </td>
-                <td class="select-column">
-                  <input
-                    class="checkbox checkbox-sm checkbox-primary"
-                    type="checkbox"
-                    checked={selectedIds.includes(shot.id)}
-                    disabled={running}
-                    aria-label={`Select ${shot.label}`}
-                    onchange={(event) => toggleShot(shot.id, event.currentTarget.checked)}
-                  />
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      <ShotQueue
+        {profile}
+        {shotStates}
+        {selectedIds}
+        {previews}
+        {captureLog}
+        {ready}
+        {running}
+        onToggleShot={toggleShot}
+        onToggleAll={toggleAll}
+        onRetry={(shot) => void startCapture([shot])}
+        onPreview={openPreview}
+      />
 
       <footer class="capture-footer">
         <p>{footerSummary}</p>
       </footer>
-      <dialog
-        class="preview-dialog"
+      <PreviewDialog
         bind:this={previewDialog}
-        aria-labelledby="preview-title"
-        onclose={() => (previewShotId = undefined)}
-        onclick={(event) => {
-          if (event.target === previewDialog) closePreview();
-        }}
-      >
-        {#if previewShot && previews[previewShot.id]}
-          <header class="preview-header">
-            <div>
-              <h2 id="preview-title">{previewShot.label}</h2>
-              <p>
-                {outputFilename(
-                  previewShot.filename,
-                  previews[previewShot.id]?.startsWith('data:image/png') ? 'png' : 'webp',
-                )}{previewSize ? ` · ${previewSize}` : ''}
-              </p>
-            </div>
-            <button class="quiet-button btn btn-ghost btn-sm" type="button" onclick={closePreview}
-              >Close</button
-            >
-          </header>
-          <img
-            src={previews[previewShot.id]}
-            alt={`Saved image for ${previewShot.label}`}
-            onload={(event) => {
-              const image = event.currentTarget as HTMLImageElement;
-              previewSize = `${image.naturalWidth} × ${image.naturalHeight}`;
-            }}
-          />
-        {/if}
-      </dialog>
+        shot={previewShot}
+        image={previewShot ? previews[previewShot.id] : undefined}
+        onClosed={() => (previewShotId = undefined)}
+      />
     </section>
   </main>
 {/if}
