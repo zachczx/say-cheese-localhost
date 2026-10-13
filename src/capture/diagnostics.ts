@@ -19,7 +19,7 @@ export class PageDiagnostics {
 
   handle(event: DebuggerEvent): void {
     if (event.method === 'Runtime.exceptionThrown') {
-      this.#errors.push(describePageException(event.params));
+      this.#add(describePageException(event.params));
     }
     if (event.method === 'Network.requestWillBeSent') {
       const request = event.params.request as { url?: string } | undefined;
@@ -37,15 +37,20 @@ export class PageDiagnostics {
     if (request && event.method === 'Network.responseReceived') {
       const response = event.params.response as { status?: number } | undefined;
       if (response?.status && response.status >= 400) {
-        this.#errors.push(`${request} returned HTTP ${response.status}.`);
+        this.#add(`${request} returned HTTP ${response.status}.`);
       }
     }
     if (event.method === 'Network.loadingFailed' || event.method === 'Network.loadingFinished') {
       if (request && event.method === 'Network.loadingFailed' && !event.params.canceled) {
-        this.#errors.push(`${request} could not load.`);
+        this.#add(`${request} could not load.`);
       }
       this.#requests.delete(requestId);
     }
+  }
+
+  /** Most events add nothing, so the controller hears only about new problems. */
+  #add(problem: string): void {
+    this.#errors.push(problem);
     if (this.#errors.length > MAX_PAGE_ERRORS) {
       this.#errors.splice(0, this.#errors.length - MAX_PAGE_ERRORS);
     }
