@@ -118,7 +118,7 @@ Bundled replacement assets belong under `public/profiles/<profile>/assets/`; Vit
 
 ## Capture lifecycle
 
-Every job creates a dedicated Chrome window, applies viewport, native tab zoom, and timezone emulation, and processes shots in order. Native zoom accepts exact values such as 220% even when the browser's zoom menu skips them. **Prepare each shot manually** is on by default. Navigate, expand sections, and scroll in the capture window, then return to the controller and choose **Capture current view**. Retakes preserve that view. Human preparation has no deadline; navigation and capture operations have bounded deadlines. Stop or closing the target ends the session and cleans up the debugger.
+Every job creates a dedicated Chrome window, applies viewport, native tab zoom, and timezone emulation, and processes shots in order. Native zoom accepts exact values such as 220% even when the browser's zoom menu skips them. **Prepare each shot manually** is on by default. Navigate, expand sections, and scroll in the capture window, then return to the controller and choose **Capture current view**. Before showing the capture controls, the job lets each page settle: local requests go quiet for half a second, up to five seconds, and Chrome paints a frame. Retakes preserve that view. Human preparation has no deadline; navigation and capture operations have bounded deadlines. Stop or closing the target ends the session and cleans up the debugger.
 
 Profiles can tune those deadlines with an optional `timeouts` object. See
 [`docs/profiles.md`](docs/profiles.md#timeouts) for the fields and defaults.
