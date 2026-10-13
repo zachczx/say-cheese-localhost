@@ -243,6 +243,26 @@ describe('manual capture lifecycle', () => {
     expect(diagnostic).toContain('/jobs returned HTTP 500');
     expect(diagnostic).not.toContain('private');
   });
+  it('reports page warnings only when the list changes', async () => {
+    mocks.navigate.mockImplementationOnce(async () => {
+      const emit = (method: string, params: Record<string, unknown>) => {
+        for (const notify of mocks.listeners) notify({ method, params });
+      };
+      emit('Runtime.exceptionThrown', {});
+      for (let index = 0; index < 50; index += 1) {
+        emit('Network.dataReceived', { requestId: `noise-${index}` });
+      }
+      emit('Runtime.exceptionThrown', {});
+      return { status: 200 };
+    });
+    const warnings = vi.fn();
+    await runCaptureJob({ ...options(), onManualReady: async () => 'next', onWarnings: warnings });
+    // Initial clear, then one exception warning. Noise and the duplicate do not re-emit.
+    expect(warnings).toHaveBeenCalledTimes(2);
+    expect(warnings.mock.calls[0]).toEqual([[]]);
+    expect(warnings.mock.calls[1]?.[0]).toHaveLength(1);
+  });
+
   it('counts a failed retake once when the user moves on', async () => {
     mocks.waitDownload
       .mockResolvedValueOnce(undefined)
