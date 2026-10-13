@@ -48,16 +48,15 @@ test('full-page capture keeps viewport width and grows with the document', async
 test('manual preparation captures, retakes, and skips on request', async ({ controller }) => {
   await controller.getByRole('button', { name: 'Open 2 shots' }).click();
 
-  const capture = controller.getByRole('button', { name: 'Capture current view' });
-  await capture.click({ timeout: 60_000 });
+  await controller.getByRole('button', { name: 'Capture current view' }).click({ timeout: 60_000 });
   await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
     timeout: 60_000,
   });
-  await capture.click();
+  await controller.getByRole('button', { name: 'Retake current view' }).click();
   await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
     timeout: 60_000,
   });
-  await controller.getByRole('button', { name: 'Next shot / finish' }).click();
+  await controller.getByRole('button', { name: 'Next shot' }).click();
   await controller.getByRole('button', { name: 'Skip shot' }).click({ timeout: 60_000 });
 
   await expect(controller.locator(footer)).toContainText('1 image saved', { timeout: 60_000 });

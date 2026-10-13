@@ -84,6 +84,15 @@
   const selectedCount = $derived(selectedIds.length);
   const allSelected = $derived(profile.shots.length > 0 && selectedCount === profile.shots.length);
   const partiallySelected = $derived(selectedCount > 0 && !allSelected);
+  // Shots from the last run that neither saved nor were deliberately skipped.
+  const unfinishedShotIds = $derived(
+    lastRunShotIds.filter(
+      (id) => !['complete', 'skipped'].includes(shotStates[id]?.status ?? 'pending'),
+    ),
+  );
+  const manualIsLastShot = $derived(
+    manualShot !== undefined && lastRunShotIds.at(-1) === manualShot.id,
+  );
   const viewport = $derived(
     VIEWPORTS.find((candidate) => candidate.id === viewportId) ?? VIEWPORTS[0],
   );
@@ -413,8 +422,8 @@
     }
   }
 
-  function retryLastRun(): void {
-    const retryShots = profile.shots.filter((shot) => lastRunShotIds.includes(shot.id));
+  function retryUnfinished(): void {
+    const retryShots = profile.shots.filter((shot) => unfinishedShotIds.includes(shot.id));
     void startCapture(retryShots);
   }
 
@@ -845,13 +854,14 @@
               class="primary-button btn btn-primary"
               type="button"
               onclick={() => chooseManual?.('capture')}
-              >{fullPageCapture ? 'Capture full page' : 'Capture current view'}</button
+              >{manualSaved ? 'Retake' : 'Capture'}
+              {fullPageCapture ? 'full page' : 'current view'}</button
             >
             <button
               class="quiet-button btn btn-ghost"
               type="button"
               onclick={() => chooseManual?.('next')}
-              >{manualSaved ? 'Next shot / finish' : 'Skip shot'}</button
+              >{manualSaved ? (manualIsLastShot ? 'Finish' : 'Next shot') : 'Skip shot'}</button
             >
           </div>
         </div>
@@ -893,12 +903,17 @@
             <strong>Capture needs attention</strong>
             <p>{errorMessage}</p>
           </div>
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            disabled={running}
-            onclick={retryLastRun}>Retry</button
-          >
+          {#if unfinishedShotIds.length > 0}
+            <button
+              class="btn btn-ghost btn-sm"
+              type="button"
+              disabled={running}
+              onclick={retryUnfinished}
+              >Retry {unfinishedShotIds.length} unfinished {unfinishedShotIds.length === 1
+                ? 'shot'
+                : 'shots'}</button
+            >
+          {/if}
         </div>
       {/if}
 
@@ -954,6 +969,7 @@
                       class="retry-shot btn btn-ghost btn-sm"
                       type="button"
                       disabled={running}
+                      aria-label={`Retry ${shot.label}`}
                       onclick={() => void startCapture([shot])}
                     >
                       Retry

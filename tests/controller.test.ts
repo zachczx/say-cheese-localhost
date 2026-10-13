@@ -179,9 +179,14 @@ describe('controller', () => {
     expect(await screen.findByText('Stopped')).toBeTruthy();
   });
 
-  it('renders capture failures and retries the previous run', async () => {
+  it('renders capture failures and retries only unfinished shots', async () => {
     runCaptureJobMock
       .mockImplementationOnce(async (options: CaptureJobOptions) => {
+        options.onShotUpdate?.({
+          shotId: 'fixture-overview',
+          status: 'complete',
+          currentUrl: 'http://localhost:5173/fixture/',
+        });
         options.onShotUpdate?.({
           shotId: 'fixture-details',
           status: 'failed',
@@ -216,10 +221,10 @@ describe('controller', () => {
     expect(alert.textContent).toContain('fixture-details: Timed out.');
     expect(screen.getByText('Fixture details').closest('tr')?.dataset.status).toBe('failed');
 
-    await fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(screen.getByRole('button', { name: 'Retry Fixture details' })).toBeTruthy();
+    await fireEvent.click(within(alert).getByRole('button', { name: 'Retry 1 unfinished shot' }));
     await waitFor(() => expect(runCaptureJobMock).toHaveBeenCalledTimes(2));
     expect(runCaptureJobMock.mock.calls[1]?.[0].shots.map((shot) => shot.id)).toEqual([
-      'fixture-overview',
       'fixture-details',
     ]);
   });
@@ -271,12 +276,30 @@ describe('controller', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Open 2 shots' }));
     await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
     expect(await screen.findByText('Image saved. You can retake it or move on.')).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Next shot / finish' }));
+    expect(screen.getByRole('button', { name: 'Retake current view' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Skip shot' })).toBeNull();
+    await fireEvent.click(screen.getByRole('button', { name: 'Next shot' }));
     await waitFor(() =>
       expect(
         (screen.getByRole('button', { name: 'Open 2 shots' }) as HTMLButtonElement).disabled,
       ).toBe(false),
     );
+  });
+
+  it('labels the final manual step as Finish', async () => {
+    runCaptureJobMock.mockImplementationOnce(async (options) => {
+      const shot = options.shots[0]!;
+      await options.onManualReady!(shot, options.signal!);
+      options.onShotUpdate?.({ shotId: shot.id, status: 'complete', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      return { completed: 1, failures: [], stopped: false, windowRetained: false };
+    });
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Fixture details' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Open 1 shot' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Finish' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Finish' })).toBeNull());
   });
 
   it('allows toggling capture beyond viewport and persists preference', async () => {
