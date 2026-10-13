@@ -217,8 +217,7 @@
     extraViewportIds = loadedPreferences.extraViewportIds;
     pageZoomInvalid = false;
     pageZoomError = '';
-    selectedIds =
-      loadedPreferences.selectedShots[storedProfile.id] ?? defaultShotIds(storedProfile);
+    selectedIds = restoredShotIds(storedProfile, loadedPreferences.selectedShots);
     resetShotStates();
   }
 
@@ -239,7 +238,7 @@
     pingResult = undefined;
     viewportId = next.defaultViewport;
     preferences.viewportId = next.defaultViewport;
-    selectedIds = preferences.selectedShots[next.id] ?? defaultShotIds(next);
+    selectedIds = restoredShotIds(next, preferences.selectedShots);
     resetShotStates();
     hideError();
     void persist();
@@ -702,6 +701,13 @@
 
   function defaultShotIds(candidate: CaptureProfile): string[] {
     return candidate.shots.filter((shot) => shot.enabledByDefault).map((shot) => shot.id);
+  }
+
+  // A saved selection can name shots that a manifest has since renamed or removed.
+  function restoredShotIds(candidate: CaptureProfile, saved: Record<string, string[]>): string[] {
+    const ids = saved[candidate.id];
+    if (!ids) return defaultShotIds(candidate);
+    return ids.filter((id) => candidate.shots.some((shot) => shot.id === id));
   }
 
   function createShotStates(candidate: CaptureProfile): Record<string, ShotState> {

@@ -526,6 +526,17 @@ describe('controller', () => {
     expect(runCaptureJobMock).not.toHaveBeenCalled();
   });
 
+  it('ignores saved selections for shots the profile no longer has', async () => {
+    storageGetMock.mockResolvedValueOnce({
+      'say-cheese-localhost.preferences.v1': {
+        profileId: 'local-demo',
+        selectedShots: { 'local-demo': ['fixture-overview', 'renamed-away'] },
+      },
+    });
+    render(App);
+    expect(await screen.findByRole('button', { name: 'Open 1 shot' })).toBeTruthy();
+  });
+
   it('persists manual preparation and restores it on the next load', async () => {
     const { unmount } = render(App);
     const manual = (await screen.findByRole('checkbox', {
