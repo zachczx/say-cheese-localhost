@@ -16,11 +16,13 @@
     "lint": "eslint .",
     "check": "tsc --noEmit && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "e2e": "pnpm build && playwright test",
     "ci": "pnpm format:check && pnpm lint && pnpm check && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@iconify-json/lucide": "^1.2.133",
+    "@playwright/test": "1.64.0",
     "@sveltejs/vite-plugin-svelte": "7.3.0",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/svelte": "5.4.2",
