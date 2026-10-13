@@ -138,6 +138,7 @@
     .catch(() => undefined);
 
   onDestroy(() => {
+    clearPreviews();
     chrome.runtime?.onMessage?.removeListener(handleRuntimeMessage);
     abortController?.abort();
     pingAbortController?.abort();
@@ -228,7 +229,7 @@
     profile = next;
     profileId = next.id;
     preferences.profileId = next.id;
-    previews = {};
+    clearPreviews();
     baseUrl = preferences.baseUrls[next.id] ?? next.defaultBaseUrl;
     baseUrlInvalid = false;
     baseUrlError = '';
@@ -413,6 +414,25 @@
     }
   }
 
+  // A full-resolution data URL holds several MB of base64 per shot for the whole
+  // session. A Blob keeps the bytes once, and its object URL is revoked when replaced.
+  async function showPreview(shotId: string, dataUrl: string): Promise<void> {
+    let url = dataUrl;
+    try {
+      url = URL.createObjectURL(await (await fetch(dataUrl)).blob());
+    } catch {
+      // Fall back to the data URL; the preview still works, it just costs more memory.
+    }
+    const previous = previews[shotId];
+    previews[shotId] = url;
+    if (previous) URL.revokeObjectURL(previous);
+  }
+
+  function clearPreviews(): void {
+    for (const url of Object.values(previews)) URL.revokeObjectURL(url);
+    previews = {};
+  }
+
   async function startCapture(shots: Shot[]): Promise<void> {
     if (running || shots.length === 0 || !validateBaseUrl(true) || !validatePageZoom(true)) return;
     lastRunShotIds = shots.map((shot) => shot.id);
@@ -488,7 +508,7 @@
             warnings = value;
           },
           onShotSaved: (shotId, dataUrl) => {
-            previews[shotId] = dataUrl;
+            void showPreview(shotId, dataUrl);
             recordCapture(shotId, pass.id);
           },
           onShotUpdate(update) {

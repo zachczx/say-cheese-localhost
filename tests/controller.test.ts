@@ -26,6 +26,9 @@ describe('controller', () => {
   beforeEach(() => {
     runCaptureJobMock.mockReset();
     pingAddressMock.mockReset();
+    // jsdom has no object URLs; the controller uses them for saved-image previews.
+    URL.createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn<(url: string) => void>();
     storageGetMock = vi.fn(async () => ({}));
     storageSetMock = vi.fn(async () => undefined);
     Object.defineProperty(globalThis, 'chrome', {
@@ -330,6 +333,8 @@ describe('controller', () => {
 
   it('previews saved images in the queue, the manual banner, and a dialog', async () => {
     const image = 'data:image/webp;base64,UklGRg==';
+    const objectUrl = 'blob:chrome-extension://test/preview-1';
+    vi.mocked(URL.createObjectURL).mockReturnValue(objectUrl);
     runCaptureJobMock.mockImplementationOnce(async (options) => {
       const shot = options.shots[0]!;
       await options.onManualReady!(shot, options.signal!);
@@ -345,7 +350,8 @@ describe('controller', () => {
     const bannerPreview = await screen.findByRole('button', {
       name: 'Open saved image for Fixture overview',
     });
-    expect(bannerPreview.querySelector('img')?.getAttribute('src')).toBe(image);
+    expect(bannerPreview.querySelector('img')?.getAttribute('src')).toBe(objectUrl);
+    expect(vi.mocked(URL.createObjectURL).mock.calls[0]?.[0]).toMatchObject({ type: 'image/webp' });
     const rowPreview = screen.getByRole('button', { name: 'Preview Fixture overview' });
     expect(screen.queryByRole('button', { name: 'Preview Fixture details' })).toBeNull();
 
@@ -357,6 +363,10 @@ describe('controller', () => {
     expect(dialog.hasAttribute('open')).toBe(false);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Next shot' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Next shot' })).toBeNull());
+    // Switching projects drops the previews and frees their object URLs.
+    await fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'cubby' } });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(objectUrl);
   });
 
   it('records when each shot was saved and shows it on the next load', async () => {
