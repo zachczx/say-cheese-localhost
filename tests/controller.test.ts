@@ -430,6 +430,28 @@ describe('controller', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Finish' })).toBeNull());
   });
 
+  it('labels Finish only on the last shot of the last viewport pass', async () => {
+    const saveThenMoveOn = async (options: CaptureJobOptions): Promise<CaptureJobResult> => {
+      const shot = options.shots[0]!;
+      options.onShotUpdate?.({ shotId: shot.id, status: 'navigating', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      options.onShotUpdate?.({ shotId: shot.id, status: 'complete', currentUrl: '' });
+      await options.onManualReady!(shot, options.signal!);
+      return { completed: 1, failures: [], stopped: false, windowRetained: false };
+    };
+    runCaptureJobMock.mockImplementationOnce(saveThenMoveOn).mockImplementationOnce(saveThenMoveOn);
+    render(App);
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Fixture details' }));
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'Desktop — 1440 × 1000' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Open 1 shot' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Next shot' }));
+    await waitFor(() => expect(runCaptureJobMock).toHaveBeenCalledTimes(2));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Capture current view' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Finish' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Finish' })).toBeNull());
+  });
+
   it('allows toggling capture beyond viewport and persists preference', async () => {
     runCaptureJobMock.mockResolvedValueOnce({
       completed: 2,
