@@ -49,12 +49,39 @@ export interface RequestReplacement {
   assetPaths: string[];
 }
 
+/** Optional per-profile deadlines, in milliseconds. Human preparation never times out. */
+export interface CaptureTimeouts {
+  /** Whole-shot deadline for opening, preparing, capturing, and downloading. */
+  shotMs?: number;
+  /** Page navigation until the load event. */
+  navigationMs?: number;
+  /** Local document, script, and API requests settling. */
+  networkQuietMs?: number;
+  /** Fonts and visible images loading and decoding. */
+  assetsMs?: number;
+}
+
+export const DEFAULT_TIMEOUTS: Readonly<Required<CaptureTimeouts>> = {
+  shotMs: 45_000,
+  navigationMs: 15_000,
+  networkQuietMs: 15_000,
+  assetsMs: 15_000,
+};
+
+const MIN_TIMEOUT_MS = 1_000;
+const MAX_TIMEOUT_MS = 600_000;
+
+export function resolveTimeouts(timeouts?: CaptureTimeouts): Required<CaptureTimeouts> {
+  return { ...DEFAULT_TIMEOUTS, ...timeouts };
+}
+
 export interface CaptureProfile {
   id: string;
   label: string;
   defaultBaseUrl: string;
   outputDirectory: string;
   defaultViewport: string;
+  timeouts?: CaptureTimeouts;
   preflight?: PreflightRule;
   requestReplacements?: RequestReplacement[];
   shots: Shot[];
@@ -120,6 +147,7 @@ export function validateProfile(
   if (profile.preflight && !isOriginRelativePath(profile.preflight.path)) {
     errors.push(`Profile "${profile.id}" has an unsafe preflight path.`);
   }
+  errors.push(...validateTimeouts(profile));
 
   for (const shot of profile.shots) {
     const normalizedId = shot.id.toLocaleLowerCase('en-US');
@@ -190,6 +218,36 @@ export function validateProfile(
     }
   }
 
+  return errors;
+}
+
+function validateTimeouts(profile: CaptureProfile): string[] {
+  if (profile.timeouts === undefined) return [];
+  const errors: string[] = [];
+  const known = new Set(Object.keys(DEFAULT_TIMEOUTS));
+  for (const [key, value] of Object.entries(profile.timeouts)) {
+    if (!known.has(key)) {
+      errors.push(`Profile "${profile.id}" has unknown timeout "${key}".`);
+      continue;
+    }
+    if (
+      typeof value !== 'number' ||
+      !Number.isInteger(value) ||
+      value < MIN_TIMEOUT_MS ||
+      value > MAX_TIMEOUT_MS
+    ) {
+      errors.push(
+        `Profile "${profile.id}" timeout "${key}" must be ${MIN_TIMEOUT_MS}–${MAX_TIMEOUT_MS} ms.`,
+      );
+    }
+  }
+  if (errors.length > 0) return errors;
+  const resolved = resolveTimeouts(profile.timeouts);
+  for (const key of ['navigationMs', 'networkQuietMs', 'assetsMs'] as const) {
+    if (resolved[key] > resolved.shotMs) {
+      errors.push(`Profile "${profile.id}" timeout "${key}" exceeds "shotMs".`);
+    }
+  }
   return errors;
 }
 

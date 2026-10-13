@@ -1,4 +1,5 @@
 import type { CaptureProfile, Shot, ViewportPreset } from '../profiles/schema';
+import { resolveTimeouts } from '../profiles/schema';
 import { delay, runWithTimeout, throwIfAborted } from './async';
 import { runActions, createCdpActionDriver } from './actions';
 import { DebuggerSession } from './debugger';
@@ -67,10 +68,9 @@ export interface CaptureJobResult {
   windowRetained: boolean;
 }
 
-const SHOT_TIMEOUT_MS = 45_000;
-
 export async function runCaptureJob(options: CaptureJobOptions): Promise<CaptureJobResult> {
   const baseUrl = normalizeLocalBaseUrl(options.baseUrl);
+  const timeouts = resolveTimeouts(options.profile.timeouts);
   const failures: CaptureFailure[] = [];
   const jobController = new AbortController();
   const onExternalAbort = () => jobController.abort(options.signal?.reason);
@@ -168,6 +168,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
         options.profile.preflight.path,
         options.profile.preflight.expected,
         jobController.signal,
+        timeouts,
       );
     }
 
@@ -188,6 +189,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
               session as DebuggerSession,
               currentUrl,
               signal,
+              timeouts.navigationMs,
             );
             if (navigation.status !== undefined && navigation.status >= 400) {
               throw new Error(`Navigation returned HTTP ${navigation.status}.`);
@@ -195,7 +197,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
             await applyPageZoom(tabId, options.pageZoomPercent);
             if (!options.onManualReady) {
               update(options, shot, 'preparing', currentUrl);
-              await tracker?.waitForQuiet(signal);
+              await tracker?.waitForQuiet(signal, undefined, timeouts.networkQuietMs);
               await prepareDocument(session as DebuggerSession, signal);
               await waitForReadyConditions(session as DebuggerSession, shot.ready ?? [], signal);
               await runActions(
@@ -205,7 +207,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
               );
             }
           },
-          SHOT_TIMEOUT_MS,
+          timeouts.shotMs,
           `Could not open "${shot.id}"`,
           jobController.signal,
         );
@@ -247,7 +249,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                       fullPage,
                     );
                   } else {
-                    await tracker?.waitForQuiet(signal);
+                    await tracker?.waitForQuiet(signal, undefined, timeouts.networkQuietMs);
                     if (fullPage) {
                       await prepareDocument(session as DebuggerSession, signal, false, true, true);
                     }
@@ -255,7 +257,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   await waitForDocumentAssets(
                     session as DebuggerSession,
                     signal,
-                    15_000,
+                    timeouts.assetsMs,
                     fullPage ? { mode: 'full-page' } : shot.capture,
                   );
                   await interceptor?.waitForIdle(signal);
@@ -287,7 +289,7 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
                   }
                 }
               },
-              SHOT_TIMEOUT_MS,
+              timeouts.shotMs,
               `Shot "${shot.id}" did not finish`,
               jobController.signal,
             );
@@ -370,14 +372,15 @@ async function runPreflight(
   path: string,
   expected: Record<string, string | number | boolean>,
   signal: AbortSignal,
+  timeouts: ReturnType<typeof resolveTimeouts>,
 ): Promise<void> {
   const url = new URL(path, baseUrl).href;
   tracker.reset();
-  const navigation = await navigateAndWait(session, url, signal);
+  const navigation = await navigateAndWait(session, url, signal, timeouts.navigationMs);
   if (navigation.status !== undefined && navigation.status >= 400) {
     throw new Error(`Preflight failed with HTTP ${navigation.status}.`);
   }
-  await tracker.waitForQuiet(signal);
+  await tracker.waitForQuiet(signal, undefined, timeouts.networkQuietMs);
   const response = await evaluate<{ body: string }>(session, `({ body: document.body.innerText })`);
   let payload: unknown;
   try {
