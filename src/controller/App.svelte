@@ -11,6 +11,7 @@
   import type { ImageFormat } from '../capture/screenshot';
   import { runFolderName } from '../storage/run-folder';
   import { closeOrphanedCaptureWindows } from '../capture/orphans';
+  import { CAPTURE_COMMAND } from '../commands';
   import { normalizeLocalBaseUrl } from '../capture/url';
   import { pingAddress, type PingResult } from '../capture/ping';
   import { PROFILES } from '../profiles';
@@ -125,7 +126,7 @@
   // background worker while the capture window has focus.
   let captureShortcut = $state('');
   function handleRuntimeMessage(message: unknown): void {
-    if ((message as { type?: string } | undefined)?.type !== 'capture-current-view') return;
+    if ((message as { type?: string } | undefined)?.type !== CAPTURE_COMMAND) return;
     if (manualShot) chooseManual?.('capture');
   }
   chrome.runtime?.onMessage?.addListener(handleRuntimeMessage);
@@ -133,7 +134,7 @@
     ?.getAll?.()
     .then((commands) => {
       captureShortcut =
-        commands.find((command) => command.name === 'capture-current-view')?.shortcut ?? '';
+        commands.find((command) => command.name === CAPTURE_COMMAND)?.shortcut ?? '';
     })
     .catch(() => undefined);
 

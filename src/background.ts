@@ -1,8 +1,7 @@
 import { closeWindowsOwnedBy } from './capture/orphans';
+import { CAPTURE_COMMAND } from './commands';
 
 const controllerUrl = chrome.runtime.getURL('controller/index.html');
-
-export const CAPTURE_COMMAND = 'capture-current-view';
 
 // The shortcut works from the capture window, so preparing a shot never needs a
 // trip back to the controller. The controller decides whether a capture is pending.
