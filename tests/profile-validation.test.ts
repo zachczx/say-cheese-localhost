@@ -72,6 +72,17 @@ describe('validateProfile', () => {
     );
   });
 
+  it('validates the optional base URL hint', () => {
+    expect(validateProfile(profile({ baseUrlHint: 'Start the QA server.' }), VIEWPORTS)).toEqual(
+      [],
+    );
+    for (const baseUrlHint of ['  ', 'x'.repeat(161)]) {
+      expect(validateProfile(profile({ baseUrlHint }), VIEWPORTS)).toEqual([
+        'Profile "demo" baseUrlHint must be 1–160 characters.',
+      ]);
+    }
+  });
+
   it('accepts tuned timeouts and rejects unknown, out-of-range, or inconsistent ones', () => {
     expect(
       validateProfile(profile({ timeouts: { shotMs: 90_000, assetsMs: 30_000 } }), VIEWPORTS),

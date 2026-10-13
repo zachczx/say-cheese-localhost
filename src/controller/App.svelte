@@ -662,9 +662,7 @@
             </div>
           {/if}
           <p class="field-help" id="base-url-help">
-            {profile.id === 'cubby'
-              ? 'Cubby QA: use 127.0.0.1:5174 with a verified household seed.'
-              : 'Only localhost and loopback addresses are accepted.'}
+            {profile.baseUrlHint ?? 'Only localhost and loopback addresses are accepted.'}
           </p>
           <p class="field-error" id="base-url-error" aria-live="polite">{baseUrlError}</p>
         </div>

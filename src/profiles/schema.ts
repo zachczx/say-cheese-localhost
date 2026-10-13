@@ -79,6 +79,8 @@ export interface CaptureProfile {
   id: string;
   label: string;
   defaultBaseUrl: string;
+  /** Short help shown under the Base URL field, for example how to start a QA server. */
+  baseUrlHint?: string;
   outputDirectory: string;
   defaultViewport: string;
   timeouts?: CaptureTimeouts;
@@ -148,6 +150,14 @@ export function validateProfile(
     errors.push(`Profile "${profile.id}" has an unsafe preflight path.`);
   }
   errors.push(...validateTimeouts(profile));
+  if (
+    profile.baseUrlHint !== undefined &&
+    (typeof profile.baseUrlHint !== 'string' ||
+      !profile.baseUrlHint.trim() ||
+      profile.baseUrlHint.length > 160)
+  ) {
+    errors.push(`Profile "${profile.id}" baseUrlHint must be 1–160 characters.`);
+  }
 
   for (const shot of profile.shots) {
     const normalizedId = shot.id.toLocaleLowerCase('en-US');
