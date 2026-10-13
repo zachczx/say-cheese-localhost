@@ -329,8 +329,7 @@ svg {
 }
 
 /* Quiet / Ghost buttons */
-.quiet-button,
-.text-button {
+.quiet-button {
   gap: 8px;
   min-height: 36px;
   font-size: 13px;
@@ -786,7 +785,7 @@ kbd {
 
 .run-status {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(260px, 1.4fr) minmax(150px, 0.7fr);
+  grid-template-columns: minmax(210px, 1fr) minmax(240px, 1.4fr) minmax(180px, 0.7fr);
   gap: 16px;
   padding: 16px 28px;
   background: var(--canvas);
@@ -838,6 +837,7 @@ kbd {
 
 .current-state strong {
   font-weight: 600;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1059,7 +1059,7 @@ progress::-webkit-progress-value {
 }
 
 .status-column {
-  width: 140px;
+  width: 172px;
   vertical-align: middle;
 }
 
@@ -1113,6 +1113,7 @@ progress::-webkit-progress-value {
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1.2;
+  white-space: nowrap;
   vertical-align: middle;
 }
 
