@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DebuggerSession } from '../src/capture/debugger';
-import { captureShot } from '../src/capture/screenshot';
+import { captureShot, outputFilename } from '../src/capture/screenshot';
 import type { Shot } from '../src/profiles/schema';
 
 const shot: Shot = {
@@ -11,6 +11,28 @@ const shot: Shot = {
   enabledByDefault: true,
 };
 const scroll = { x: 12, y: 640 };
+
+describe('PNG output', () => {
+  it('captures losslessly and swaps the file extension', async () => {
+    const sent: Array<[string, Record<string, unknown>]> = [];
+    const session = {
+      send: async (method: string, params: Record<string, unknown> = {}) => {
+        sent.push([method, params]);
+        if (method === 'Page.captureScreenshot') return { data: 'iVBORw0KGgo=' };
+        if (method === 'Runtime.evaluate') return { result: { value: { x: 0, y: 0 } } };
+        return {};
+      },
+    } as unknown as DebuggerSession;
+    const shot = { id: 'a', label: 'A', path: '/', filename: 'a.webp', enabledByDefault: true };
+    const dataUrl = await captureShot(session, shot, { format: 'png' });
+    expect(dataUrl).toBe('data:image/png;base64,iVBORw0KGgo=');
+    const params = sent.find(([method]) => method === 'Page.captureScreenshot')?.[1];
+    expect(params).toMatchObject({ format: 'png' });
+    expect(params).not.toHaveProperty('quality');
+    expect(outputFilename('cubby-01-dashboard.webp', 'png')).toBe('cubby-01-dashboard.png');
+    expect(outputFilename('cubby-01-dashboard.webp')).toBe('cubby-01-dashboard.webp');
+  });
+});
 
 describe('captureShot', () => {
   describe('viewport mode', () => {

@@ -21,9 +21,18 @@ interface ElementRect {
   height: number;
 }
 
+/** WebP at quality 100 is still lossy. PNG is lossless and larger. */
+export type ImageFormat = 'webp' | 'png';
+
 export interface CaptureShotOptions {
   captureBeyondViewport?: boolean;
   fullPage?: boolean;
+  format?: ImageFormat;
+}
+
+/** Profiles name files with `.webp`; a PNG run swaps the extension. */
+export function outputFilename(filename: string, format: ImageFormat = 'webp'): string {
+  return format === 'png' ? filename.replace(/\.webp$/i, '.png') : filename;
 }
 
 export async function captureShot(
@@ -37,9 +46,10 @@ export async function captureShot(
       ? true
       : (shot.capture?.captureBeyondViewport ?? options?.captureBeyondViewport ?? false);
 
+  const format = options?.format ?? 'webp';
   const params: Record<string, unknown> = {
-    format: 'webp',
-    quality: 100,
+    format,
+    ...(format === 'webp' ? { quality: 100 } : {}),
     fromSurface: true,
     captureBeyondViewport,
   };
@@ -94,7 +104,7 @@ export async function captureShot(
 
   try {
     const result = await session.send<ScreenshotResult>('Page.captureScreenshot', params);
-    return `data:image/webp;base64,${result.data}`;
+    return `data:image/${format};base64,${result.data}`;
   } finally {
     if (mode === 'viewport') {
       if (!captureBeyondViewport && preparedScroll) {

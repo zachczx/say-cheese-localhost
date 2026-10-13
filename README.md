@@ -56,9 +56,11 @@ The default Local demo profile points to `http://localhost:5173`. In the control
 6. Review the files under `Downloads/say-cheese-localhost/demo/`.
 
 The default iPhone 14 Pro Max output is exactly `1290 × 2796` from a `430 × 932` CSS viewport
-at 3× DPR, and native zoom does not change it. The end-to-end suite verifies both. WebP quality must be assessed visually in
-Chrome before the format is adopted for application profiles; use lossless PNG
-instead if artifacts are visible.
+at 3× DPR, and native zoom does not change it. The end-to-end suite verifies both.
+
+Images are WebP at quality 100 by default, which is still lossy. Inspect them before adopting
+WebP for an application. If artifacts are visible, set **Image format** to PNG. PNG is lossless
+and larger, and files keep their profile names with a `.png` extension.
 
 ## Development
 

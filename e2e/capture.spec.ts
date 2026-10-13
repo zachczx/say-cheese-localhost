@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import {
   expect,
   FIXTURE_CARD_POINT,
@@ -110,4 +112,19 @@ test('dark color scheme renders the page in dark mode', async ({ controller }) =
   // The fixture's dark background is #1d1c19; light mode would be #f3efe4.
   const [background] = await savedPixels(controller, 215, 900);
   expect(Math.max(...background!)).toBeLessThan(60);
+});
+
+test('PNG format saves lossless images at the same size', async ({ controller }) => {
+  await controller.getByRole('checkbox', { name: /Prepare each shot manually/ }).uncheck();
+  await controller.getByLabel('Image format').selectOption('png');
+  await controller.getByRole('checkbox', { name: 'Select Fixture details' }).uncheck();
+  await controller.getByRole('button', { name: 'Capture 1 shot' }).click();
+
+  await expect(controller.locator(footer)).toContainText('1 image saved', { timeout: 90_000 });
+  const [item] = await controller.evaluate(() => chrome.downloads.search({ state: 'complete' }));
+  // PNG signature: 0x89 'P' 'N' 'G'.
+  expect([...readFileSync(item!.filename).subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  expect(await savedImages(controller)).toEqual([{ width: 1290, height: 2796 }]);
+  const [card] = await savedPixels(controller, cardX, cardY);
+  expect(isCardWhite(card!)).toBe(true);
 });
