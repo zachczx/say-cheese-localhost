@@ -144,8 +144,11 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
   let windowRetained: boolean;
 
   try {
-    const { windowId, tabId } = await openCaptureWindow(options.viewport, jobController.signal);
-    resources.windowId = windowId;
+    const { windowId, tabId } = await openCaptureWindow(
+      options.viewport,
+      jobController.signal,
+      resources,
+    );
     const session = await attachSession(tabId, jobController.signal, (reason) => {
       detached = true;
       jobController.abort(new Error(`Chrome detached the capture debugger (${reason}).`));
@@ -215,9 +218,11 @@ export async function runCaptureJob(options: CaptureJobOptions): Promise<Capture
 // ---------------------------------------------------------------------------
 // Setup and teardown
 
+/** Records the window in `resources` as soon as it exists, so a later setup failure still closes it. */
 async function openCaptureWindow(
   viewport: ViewportPreset,
   signal: AbortSignal,
+  resources: JobResources,
 ): Promise<{ windowId: number | undefined; tabId: number }> {
   const controllerWindow = await chrome.windows.getCurrent?.().catch(() => undefined);
   const captureWindow = await chrome.windows.create({
@@ -235,6 +240,7 @@ async function openCaptureWindow(
   });
   if (!captureWindow) throw new Error('Chrome did not create a capture window.');
   const windowId = captureWindow.id;
+  resources.windowId = windowId;
   const tabId = captureWindow.tabs?.[0]?.id;
   if (tabId === undefined) throw new Error('Chrome did not create a capture tab.');
   if (windowId !== undefined) {
