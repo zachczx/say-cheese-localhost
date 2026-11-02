@@ -1,6 +1,6 @@
 # Cubby profile
 
-This profile covers Cubby's main screens. The 17 that the public case study uses start
+This profile covers Cubby's main screens. The 17 that the refreshed case study uses start
 selected, and the rest start cleared. Use it only against
 Cubby's synthetic, manually verified QA environment. Say Cheese Localhost does not start the app
 or seed its database.
