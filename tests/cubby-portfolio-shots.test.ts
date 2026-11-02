@@ -5,47 +5,30 @@ import { VIEWPORTS } from '../src/profiles/viewports';
 
 const cubbyShots = PROFILES.find((profile) => profile.id === 'cubby')!.shots;
 
-// Screenshots the public case study imports. These start selected, so a default run
-// refreshes the site. Every other shot is app coverage and starts cleared.
+// Screenshots the case study refresh uses, in chapter order. These start selected, so a
+// default run covers the site. Every other shot is app coverage and starts cleared.
 const caseStudyShots = [
   'dashboard',
+  'dashboard-recent',
   'tasks',
   'limits',
   'screentimer',
   'enrichment',
   'gym-workout',
   'illness',
+  'sleep',
   'coffee',
   'meals',
+  'jobs',
   'expiry',
   'market',
   'finance',
-  'travel',
   'growing-up',
   'journal-recap',
-  'dashboard-recent',
 ];
 
-const shotOrder = [
-  'dashboard',
-  'tasks',
-  'limits',
-  'screentimer',
-  'enrichment',
-  'gym-workout',
+const appCoverageShots = [
   'gym-exercise',
-  'illness',
-  'coffee',
-  'meals',
-  'expiry',
-  'market',
-  'finance',
-  'travel',
-  'growing-up',
-  'journal-recap',
-  'dashboard-recent',
-  'sleep',
-  'jobs',
   'moments',
   'schedule',
   'timeline',
@@ -54,6 +37,8 @@ const shotOrder = [
   'track',
   'apps',
 ];
+
+const shotOrder = [...caseStudyShots, ...appCoverageShots];
 
 describe('Cubby shot curation', () => {
   it('registers Cubby as a selectable capture profile', () => {
@@ -68,17 +53,14 @@ describe('Cubby shot curation', () => {
   });
 
   it('selects exactly the case study screenshots by default', () => {
-    expect(
-      cubbyShots
-        .filter((shot) => shot.enabledByDefault)
-        .map((shot) => shot.id)
-        .sort(),
-    ).toEqual([...caseStudyShots].sort());
+    expect(cubbyShots.filter((shot) => shot.enabledByDefault).map((shot) => shot.id)).toEqual(
+      caseStudyShots,
+    );
   });
 
-  it('does not bring back retired shots', () => {
+  it('does not bring back retired shots or removed Cubby features', () => {
     const ids = cubbyShots.map((shot) => shot.id);
-    for (const retired of ['market-scan', 'gym', 'coffee-brews']) {
+    for (const retired of ['market-scan', 'gym', 'coffee-brews', 'travel']) {
       expect(ids).not.toContain(retired);
     }
   });
