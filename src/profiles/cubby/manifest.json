@@ -44,18 +44,18 @@
     },
     {
       "id": "gym-workout",
-      "label": "Gym workout",
-      "path": "/app/gym",
+      "label": "Workout",
+      "path": "/app/workouts",
       "filename": "cubby-06-gym-workout.webp",
       "enabledByDefault": true,
       "preparation": "Open the workout you want to show, then adjust the scroll position."
     },
     {
       "id": "gym-exercise",
-      "label": "Gym exercise",
-      "path": "/app/gym/stats/exercises",
+      "label": "Workout exercise",
+      "path": "/app/workouts/stats/exercises",
       "filename": "cubby-07-gym-exercise.webp",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "preparation": "Open an exercise and frame its history before capturing."
     },
     {
@@ -120,6 +120,87 @@
       "path": "/app/journal/recap",
       "filename": "cubby-16-journal-recap.webp",
       "enabledByDefault": true
+    },
+    {
+      "id": "dashboard-recent",
+      "label": "Dashboard recent",
+      "path": "/app",
+      "filename": "cubby-17-dashboard-recent.webp",
+      "enabledByDefault": true,
+      "preparation": "Scroll Home down to the Recent section.",
+      "actions": [
+        {
+          "type": "wait-for-selector",
+          "selector": "#mobile-home-recent-title"
+        },
+        {
+          "type": "scroll-to",
+          "selector": "#mobile-home-recent-title"
+        }
+      ]
+    },
+    {
+      "id": "sleep",
+      "label": "Sleep",
+      "path": "/app/sleep",
+      "filename": "cubby-18-sleep.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "jobs",
+      "label": "Jobs",
+      "path": "/app/jobs",
+      "filename": "cubby-19-jobs.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "moments",
+      "label": "Moments",
+      "path": "/app/journal/moments",
+      "filename": "cubby-20-moments.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "schedule",
+      "label": "Schedule",
+      "path": "/app/schedule",
+      "filename": "cubby-21-schedule.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "timeline",
+      "label": "Timeline",
+      "path": "/app/timeline",
+      "filename": "cubby-22-timeline.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "path": "/app/calendar",
+      "filename": "cubby-23-calendar.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "household",
+      "label": "Household",
+      "path": "/app/household",
+      "filename": "cubby-24-household.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "track",
+      "label": "Track",
+      "path": "/app/track",
+      "filename": "cubby-25-track.webp",
+      "enabledByDefault": false
+    },
+    {
+      "id": "apps",
+      "label": "Apps",
+      "path": "/app/all",
+      "filename": "cubby-26-apps.webp",
+      "enabledByDefault": false
     }
   ]
 }
