@@ -123,21 +123,45 @@ export interface StartedDownload {
   release: () => void;
 }
 
+// Output paths for downloads this page started, keyed by their object URL.
+const pendingPaths = new Map<string, string>();
+let claimingFilenames = false;
+
 /**
- * Starts the download from a blob: URL. A data: URL has no name of its own, so
- * download managers that rename files from the URL fall back to "download".
+ * Download managers that rename files from the URL turn a data: URL into
+ * "download" and a blob: URL into its UUID. Answering the filename event for our
+ * own downloads restates the intended path. Chrome picks one extension's
+ * answer when several respond, so this cannot override a manager it ranks higher.
  */
+function claimFilenames(): void {
+  const event = chrome.downloads.onDeterminingFilename;
+  if (claimingFilenames || !event) return;
+  claimingFilenames = true;
+  event.addListener((item, suggest) => {
+    const path = pendingPaths.get(item.url) ?? pendingPaths.get(item.finalUrl);
+    if (path === undefined) return;
+    suggest({ filename: path, conflictAction: 'overwrite' });
+  });
+}
+
+/** Starts the download from a blob: URL under the profile's output path. */
 export async function downloadScreenshot(
   dataUrl: string,
   outputDirectory: string,
   filename: string,
 ): Promise<StartedDownload> {
   const objectUrl = URL.createObjectURL(await (await fetch(dataUrl)).blob());
-  const release = () => URL.revokeObjectURL(objectUrl);
+  const path = joinDownloadPath(outputDirectory, filename);
+  const release = () => {
+    pendingPaths.delete(objectUrl);
+    URL.revokeObjectURL(objectUrl);
+  };
+  claimFilenames();
+  pendingPaths.set(objectUrl, path);
   try {
     const id = await chrome.downloads.download({
       url: objectUrl,
-      filename: joinDownloadPath(outputDirectory, filename),
+      filename: path,
       conflictAction: 'overwrite',
       saveAs: false,
     });

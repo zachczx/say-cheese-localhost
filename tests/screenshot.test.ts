@@ -228,6 +228,42 @@ describe('downloadScreenshot', () => {
     }
   });
 
+  it('restates the output path when Chrome asks for the download filename', async () => {
+    const listeners: Array<
+      (item: { url: string; finalUrl: string }, suggest: (value: object) => void) => void
+    > = [];
+    vi.stubGlobal('chrome', {
+      downloads: {
+        download: vi.fn(async () => 7),
+        onDeterminingFilename: {
+          addListener: (fn: (typeof listeners)[number]) => listeners.push(fn),
+        },
+      },
+    });
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mine');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    try {
+      const started = await downloadScreenshot('data:image/webp;base64,UklGRg==', 'out', 'a.webp');
+      const suggest = vi.fn();
+      listeners[0]!({ url: 'blob:mine', finalUrl: 'blob:mine' }, suggest);
+      expect(suggest).toHaveBeenCalledWith({ filename: 'out/a.webp', conflictAction: 'overwrite' });
+
+      // Other extensions' downloads, and ours once released, are left alone.
+      const ignored = vi.fn();
+      listeners[0]!(
+        { url: 'https://example.test/x.zip', finalUrl: 'https://example.test/x.zip' },
+        ignored,
+      );
+      started.release();
+      listeners[0]!({ url: 'blob:mine', finalUrl: 'blob:mine' }, ignored);
+      expect(ignored).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      create.mockRestore();
+      revoke.mockRestore();
+    }
+  });
+
   it('releases the blob URL when Chrome refuses the download', async () => {
     vi.stubGlobal('chrome', {
       downloads: {
