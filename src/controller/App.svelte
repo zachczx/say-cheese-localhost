@@ -87,7 +87,6 @@
   let abortController: AbortController | undefined;
   let manual = $state(true);
   let manualShot = $state<Shot>();
-  let manualSaved = $state(false);
   let manualError = $state('');
   let warnings = $state<string[]>([]);
   // Last image saved for each shot in this controller session, as a data URL.
@@ -102,8 +101,6 @@
   let running = $state(false);
   let stopping = $state(false);
   let lastRunShotIds = $state<string[]>([]);
-  // False while extra viewport passes remain, so their last shot does not read "Finish".
-  let onFinalPass = $state(true);
   let progressCompleted = $state(0);
   let progressTotal = $state(initialProfile.shots.length);
   let currentUrl = $state('Ready to capture');
@@ -120,9 +117,6 @@
     lastRunShotIds.filter(
       (id) => !['complete', 'skipped'].includes(shotStates[id]?.status ?? 'pending'),
     ),
-  );
-  const manualIsLastShot = $derived(
-    manualShot !== undefined && onFinalPass && lastRunShotIds.at(-1) === manualShot.id,
   );
   const previewShot = $derived(profile.shots.find((shot) => shot.id === previewShotId));
   const viewport = $derived(
@@ -484,6 +478,18 @@
     setSelection(checked ? profile.shots.map((shot) => shot.id) : []);
   }
 
+  // "Done" means saved in an earlier session or in this one.
+  function selectNotDone(): void {
+    setSelection(
+      profile.shots
+        .filter(
+          (shot) =>
+            shotStates[shot.id]?.status !== 'complete' && !captureLog[profile.id]?.[shot.id],
+        )
+        .map((shot) => shot.id),
+    );
+  }
+
   function handleBeforeUnload(event: BeforeUnloadEvent): void {
     // Closing the controller mid-run abandons the capture. Ask first.
     if (!running) return;
@@ -537,7 +543,6 @@
     running = true;
     stopping = false;
     hideError();
-    manualSaved = false;
     manualError = '';
     warnings = [];
     // One pass per viewport. A single viewport keeps today's paths unchanged; with
@@ -574,7 +579,6 @@
           break;
         }
         const offset = passIndex * shots.length;
-        onFinalPass = passIndex === passes.length - 1;
         const subdirectory = [runFolder, multiViewport ? pass.id : undefined]
           .filter(Boolean)
           .join('/');
@@ -601,11 +605,7 @@
             recordCapture(shotId, pass.id);
           },
           onShotUpdate(update) {
-            if (update.status === 'navigating') {
-              manualSaved = false;
-              manualError = '';
-            }
-            if (update.status === 'complete') manualSaved = true;
+            if (update.status === 'navigating') manualError = '';
             if (manual && update.status === 'failed')
               manualError = update.detail ?? 'Capture failed.';
             shotStates[update.shotId] = { status: update.status, error: update.detail };
@@ -1198,18 +1198,13 @@
       </div>
 
       {#if manualShot}
-        {@const preparedShot = manualShot}
         <ManualPreparation
-          shot={preparedShot}
-          saved={manualSaved}
+          shot={manualShot}
           error={manualError}
           fullPage={fullPageCapture}
-          isLastShot={manualIsLastShot}
-          preview={previews[preparedShot.id]}
           shortcut={captureShortcut}
           onCapture={() => chooseManual?.('capture')}
-          onNext={() => chooseManual?.('next')}
-          onPreview={() => openPreview(preparedShot.id)}
+          onSkip={() => chooseManual?.('next')}
         />
       {/if}
       {#if warnings.length > 0}
@@ -1259,6 +1254,7 @@
         {running}
         onToggleShot={toggleShot}
         onToggleAll={toggleAll}
+        onSelectNotDone={selectNotDone}
         onRetry={(shot) => void startCapture([shot])}
         onPreview={openPreview}
       />

@@ -14,6 +14,7 @@
     running: boolean;
     onToggleShot: (shotId: string, checked: boolean) => void;
     onToggleAll: (checked: boolean) => void;
+    onSelectNotDone: () => void;
     onRetry: (shot: Shot) => void;
     onPreview: (shotId: string) => void;
   }
@@ -28,6 +29,7 @@
     running,
     onToggleShot,
     onToggleAll,
+    onSelectNotDone,
     onRetry,
     onPreview,
   }: Props = $props();
@@ -45,6 +47,26 @@
   <div>
     <h2 id="queue-title">Shot queue</h2>
     <p>{profile.shots.length} ordered shots · {selectedCount} selected</p>
+  </div>
+  <div class="queue-select-actions" role="group" aria-label="Shot selection">
+    <button
+      class="btn btn-ghost btn-sm"
+      type="button"
+      disabled={!ready || running || profile.shots.length === 0}
+      onclick={() => onToggleAll(true)}>Select all</button
+    >
+    <button
+      class="btn btn-ghost btn-sm"
+      type="button"
+      disabled={!ready || running || profile.shots.length === 0}
+      onclick={onSelectNotDone}>Select not done</button
+    >
+    <button
+      class="btn btn-ghost btn-sm"
+      type="button"
+      disabled={!ready || running || selectedCount === 0}
+      onclick={() => onToggleAll(false)}>Select none</button
+    >
   </div>
 </div>
 

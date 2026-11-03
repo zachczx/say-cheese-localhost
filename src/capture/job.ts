@@ -369,9 +369,10 @@ async function openShot(
 }
 
 /**
- * Hands the shot to the user until they move on. Each capture overwrites the
- * file; a failed attempt can be retried in place. Human preparation has no
- * deadline, but Stop or target closure still aborts it.
+ * Hands the shot to the user until it is captured or skipped. A successful
+ * capture moves straight on to the next shot; a failed attempt can be retried
+ * in place. Human preparation has no deadline, but Stop or target closure
+ * still aborts it.
  */
 async function captureWithPreparation(
   context: JobContext,
@@ -382,7 +383,7 @@ async function captureWithPreparation(
   const { options, tally } = context;
   let saved = false;
   let lastFailure: CaptureFailure | undefined;
-  for (;;) {
+  while (!saved) {
     update(options, shot, 'waiting', location.url);
     const action = await awaitUser(shot, context.signal);
     throwIfAborted(context.signal);
@@ -394,11 +395,12 @@ async function captureWithPreparation(
         `Shot "${shot.id}" did not finish`,
         context.signal,
       );
-      if (!saved) tally.completed += 1;
+      tally.completed += 1;
       saved = true;
       lastFailure = undefined;
       update(options, shot, 'complete', location.url);
       reportProgress(context);
+      continue;
     } catch (error) {
       if (isAbortError(error) || context.signal.aborted) throw error;
       lastFailure = {
@@ -411,16 +413,13 @@ async function captureWithPreparation(
     context.diagnostics.forgetForNextAttempt();
   }
 
+  if (saved) return;
   if (lastFailure) {
-    // The latest attempt failed, so an earlier save no longer represents this shot.
-    if (saved) tally.completed -= 1;
     tally.failures.push(lastFailure);
     update(options, shot, 'failed', location.url, lastFailure.message);
-  } else if (!saved) {
+  } else {
     tally.skipped += 1;
     update(options, shot, 'skipped', location.url);
-  } else {
-    update(options, shot, 'complete', location.url);
   }
   reportProgress(context);
 }
@@ -481,12 +480,16 @@ async function captureAttempt(
     throwIfAborted(signal);
 
     update(options, shot, 'downloading', location.url);
-    const downloadId = await downloadScreenshot(
+    const download = await downloadScreenshot(
       dataUrl,
       context.outputDirectory,
       outputFilename(shot.filename, options.format),
     );
-    await waitForDownload(downloadId, signal);
+    try {
+      await waitForDownload(download.id, signal);
+    } finally {
+      download.release();
+    }
     throwIfAborted(signal);
     options.onShotSaved?.(shot.id, dataUrl);
   } finally {

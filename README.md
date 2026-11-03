@@ -50,10 +50,9 @@ The default Local demo profile points to `http://localhost:5173`. In the control
 1. Keep the Phone viewport selected.
 2. Select one or both fixture shots.
 3. Choose **Open**, prepare the capture window, then choose **Capture current view**.
-4. Choose **Retake current view** to overwrite the image without resetting its framing, or
-   **Skip shot** to move on without saving.
-5. Choose **Next shot**, or **Finish** on the last shot.
-6. Review the files under `Downloads/say-cheese-localhost/demo/`.
+4. The next shot opens as soon as the image is saved. Choose **Skip shot** instead to move on
+   without saving. To retake a shot, run it again; the new image overwrites the old one.
+5. Review the files under `Downloads/say-cheese-localhost/demo/`.
 
 The default iPhone 14 Pro Max output is exactly `1290 × 2796` from a `430 × 932` CSS viewport
 at 3× DPR, and native zoom does not change it. The end-to-end suite verifies both.

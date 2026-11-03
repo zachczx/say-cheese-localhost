@@ -117,18 +117,35 @@ export async function captureShot(
   }
 }
 
+export interface StartedDownload {
+  id: number;
+  /** Frees the object URL once Chrome has finished reading it. Safe to call twice. */
+  release: () => void;
+}
+
+/**
+ * Starts the download from a blob: URL. A data: URL has no name of its own, so
+ * download managers that rename files from the URL fall back to "download".
+ */
 export async function downloadScreenshot(
   dataUrl: string,
   outputDirectory: string,
   filename: string,
-): Promise<number> {
-  const downloadId = await chrome.downloads.download({
-    url: dataUrl,
-    filename: joinDownloadPath(outputDirectory, filename),
-    conflictAction: 'overwrite',
-    saveAs: false,
-  });
-  return downloadId;
+): Promise<StartedDownload> {
+  const objectUrl = URL.createObjectURL(await (await fetch(dataUrl)).blob());
+  const release = () => URL.revokeObjectURL(objectUrl);
+  try {
+    const id = await chrome.downloads.download({
+      url: objectUrl,
+      filename: joinDownloadPath(outputDirectory, filename),
+      conflictAction: 'overwrite',
+      saveAs: false,
+    });
+    return { id, release };
+  } catch (error) {
+    release();
+    throw error;
+  }
 }
 
 export async function waitForDownload(

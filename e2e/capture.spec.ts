@@ -66,32 +66,22 @@ test('full-page capture keeps viewport width and grows with the document', async
   expect(isCardWhite(card!)).toBe(true);
 });
 
-test('manual preparation captures, retakes, and moves to the next shot', async ({ controller }) => {
+test('manual preparation captures each shot and moves on by itself', async ({ controller }) => {
   await controller.getByRole('button', { name: 'Open 2 shots' }).click();
 
   await controller.getByRole('button', { name: 'Capture current view' }).click({ timeout: 60_000 });
-  await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
-    timeout: 60_000,
-  });
-  await controller.getByRole('button', { name: 'Retake current view' }).click();
-  await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
-    timeout: 60_000,
-  });
-  await controller.getByRole('button', { name: 'Next shot' }).click();
   // Capture the second shot as soon as it opens: the case that used to read a
   // frame rendered at the real window size right after an in-window navigation.
   await controller.getByRole('button', { name: 'Capture current view' }).click({ timeout: 60_000 });
-  await controller.getByRole('button', { name: 'Finish' }).click({ timeout: 60_000 });
 
   await expect(controller.locator(footer)).toContainText('2 images saved', { timeout: 60_000 });
   expect(await savedImages(controller)).toEqual([
     { width: 1290, height: 2796 },
     { width: 1290, height: 2796 },
-    { width: 1290, height: 2796 },
   ]);
   // Every capture shows the fully painted page, not a repeated top band.
   const pixels = await savedPixels(controller, cardX, cardY);
-  expect(pixels.map(isCardWhite)).toEqual([true, true, true]);
+  expect(pixels.map(isCardWhite)).toEqual([true, true]);
 });
 
 test('manual preparation can skip every shot', async ({ controller }) => {
@@ -171,9 +161,7 @@ test('the capture command message captures from the capture window', async ({
   // background worker's message the way the command handler does.
   const [worker] = context.serviceWorkers();
   await worker!.evaluate(() => chrome.runtime.sendMessage({ type: 'capture-current-view' }));
-  await expect(controller.getByText('Image saved. You can retake it or move on.')).toBeVisible({
-    timeout: 60_000,
-  });
+  await expect(controller.locator(footer)).toContainText('1 image saved', { timeout: 60_000 });
   const [card] = await savedPixels(controller, cardX, cardY);
   expect(isCardWhite(card!)).toBe(true);
 });

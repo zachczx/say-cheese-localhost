@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DebuggerSession } from '../src/capture/debugger';
-import { captureShot, outputFilename } from '../src/capture/screenshot';
+import { captureShot, downloadScreenshot, outputFilename } from '../src/capture/screenshot';
 import type { Shot } from '../src/profiles/schema';
 
 const shot: Shot = {
@@ -195,5 +195,58 @@ describe('captureShot', () => {
         clip: { x: 20, y: 100, width: 350, height: 200, scale: 1 },
       });
     });
+  });
+});
+
+describe('downloadScreenshot', () => {
+  it('downloads from a blob URL so the file keeps its name, then releases it', async () => {
+    const download = vi.fn(async () => 7);
+    vi.stubGlobal('chrome', { downloads: { download } });
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:shot');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    try {
+      const started = await downloadScreenshot(
+        'data:image/webp;base64,UklGRg==',
+        'say-cheese-localhost/demo',
+        'demo-01-overview.webp',
+      );
+      expect(started.id).toBe(7);
+      expect(create.mock.calls[0]?.[0]).toMatchObject({ type: 'image/webp' });
+      expect(download).toHaveBeenCalledWith({
+        url: 'blob:shot',
+        filename: 'say-cheese-localhost/demo/demo-01-overview.webp',
+        conflictAction: 'overwrite',
+        saveAs: false,
+      });
+      expect(revoke).not.toHaveBeenCalled();
+      started.release();
+      expect(revoke).toHaveBeenCalledWith('blob:shot');
+    } finally {
+      vi.unstubAllGlobals();
+      create.mockRestore();
+      revoke.mockRestore();
+    }
+  });
+
+  it('releases the blob URL when Chrome refuses the download', async () => {
+    vi.stubGlobal('chrome', {
+      downloads: {
+        download: vi.fn(async () => {
+          throw new Error('Invalid filename');
+        }),
+      },
+    });
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:shot');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    try {
+      await expect(
+        downloadScreenshot('data:image/webp;base64,UklGRg==', 'out', 'a.webp'),
+      ).rejects.toThrow('Invalid filename');
+      expect(revoke).toHaveBeenCalledWith('blob:shot');
+    } finally {
+      vi.unstubAllGlobals();
+      create.mockRestore();
+      revoke.mockRestore();
+    }
   });
 });
