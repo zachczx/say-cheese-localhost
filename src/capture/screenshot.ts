@@ -117,18 +117,59 @@ export async function captureShot(
   }
 }
 
+export interface StartedDownload {
+  id: number;
+  /** Frees the object URL once Chrome has finished reading it. Safe to call twice. */
+  release: () => void;
+}
+
+// Output paths for downloads this page started, keyed by their object URL.
+const pendingPaths = new Map<string, string>();
+let claimingFilenames = false;
+
+/**
+ * Download managers that rename files from the URL turn a data: URL into
+ * "download" and a blob: URL into its UUID. Answering the filename event for our
+ * own downloads restates the intended path. Chrome picks one extension's
+ * answer when several respond, so this cannot override a manager it ranks higher.
+ */
+function claimFilenames(): void {
+  const event = chrome.downloads.onDeterminingFilename;
+  if (claimingFilenames || !event) return;
+  claimingFilenames = true;
+  event.addListener((item, suggest) => {
+    const path = pendingPaths.get(item.url) ?? pendingPaths.get(item.finalUrl);
+    if (path === undefined) return;
+    suggest({ filename: path, conflictAction: 'overwrite' });
+  });
+}
+
+/** Starts the download from a blob: URL under the profile's output path. */
 export async function downloadScreenshot(
   dataUrl: string,
   outputDirectory: string,
   filename: string,
-): Promise<number> {
-  const downloadId = await chrome.downloads.download({
-    url: dataUrl,
-    filename: joinDownloadPath(outputDirectory, filename),
-    conflictAction: 'overwrite',
-    saveAs: false,
-  });
-  return downloadId;
+): Promise<StartedDownload> {
+  const objectUrl = URL.createObjectURL(await (await fetch(dataUrl)).blob());
+  const path = joinDownloadPath(outputDirectory, filename);
+  const release = () => {
+    pendingPaths.delete(objectUrl);
+    URL.revokeObjectURL(objectUrl);
+  };
+  claimFilenames();
+  pendingPaths.set(objectUrl, path);
+  try {
+    const id = await chrome.downloads.download({
+      url: objectUrl,
+      filename: path,
+      conflictAction: 'overwrite',
+      saveAs: false,
+    });
+    return { id, release };
+  } catch (error) {
+    release();
+    throw error;
+  }
 }
 
 export async function waitForDownload(

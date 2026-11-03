@@ -82,7 +82,7 @@ describe('manual capture lifecycle', () => {
     mocks.listeners.length = 0;
     mocks.navigate.mockResolvedValue({ status: 200 });
     mocks.capture.mockResolvedValue('data:image/webp;base64,example');
-    mocks.download.mockResolvedValue(1);
+    mocks.download.mockResolvedValue({ id: 1, release: vi.fn() });
     mocks.waitDownload.mockResolvedValue(undefined);
     mocks.waitAssets.mockResolvedValue(undefined);
     mocks.waitPaint.mockResolvedValue(true);
@@ -202,32 +202,26 @@ describe('manual capture lifecycle', () => {
   it('waits for a painted frame before every capture', async () => {
     await runCaptureJob({
       ...options(),
-      onManualReady: vi
-        .fn()
-        .mockResolvedValueOnce('capture')
-        .mockResolvedValueOnce('capture')
-        .mockResolvedValueOnce('next'),
+      shots: PROFILES[0]!.shots,
+      onManualReady: vi.fn().mockResolvedValue('capture'),
     });
-    // One wait while the page settles after navigation, then one before each capture.
+    // Per shot: one wait while the page settles after navigation, then one before the capture.
     const paints = mocks.waitPaint.mock.invocationCallOrder;
     const captures = mocks.capture.mock.invocationCallOrder;
-    expect(paints).toHaveLength(3);
+    expect(paints).toHaveLength(4);
     expect(paints[1]).toBeLessThan(captures[0]!);
     expect(paints[2]).toBeGreaterThan(captures[0]!);
-    expect(paints[2]).toBeLessThan(captures[1]!);
+    expect(paints[3]).toBeLessThan(captures[1]!);
   });
 
-  it('retakes the prepared view without navigating or sweeping again', async () => {
-    const ready = vi
-      .fn()
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('next');
+  it('moves straight on after a successful capture without asking again', async () => {
+    const ready = vi.fn().mockResolvedValue('capture');
     const result = await runCaptureJob({ ...options(), onManualReady: ready });
+    expect(ready).toHaveBeenCalledOnce();
     expect(result.completed).toBe(1);
     expect(result.failures).toEqual([]);
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
-    expect(mocks.capture).toHaveBeenCalledTimes(2);
+    expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(mocks.applyZoom).toHaveBeenCalledWith(2, 220);
     expect(mocks.prepare.mock.calls.every((call) => call[2] === true)).toBe(true);
     expect(mocks.detach).toHaveBeenCalledOnce();
@@ -295,11 +289,7 @@ describe('manual capture lifecycle', () => {
     mocks.waitDownload.mockRejectedValueOnce(new Error('Download interrupted'));
     const updates: string[] = [];
     const saved = vi.fn();
-    const ready = vi
-      .fn()
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('next');
+    const ready = vi.fn().mockResolvedValue('capture');
     const result = await runCaptureJob({
       ...options(),
       onManualReady: ready,
@@ -418,19 +408,13 @@ describe('manual capture lifecycle', () => {
     expect(warnings.mock.calls[1]?.[0]).toHaveLength(1);
   });
 
-  it('counts a failed retake once when the user moves on', async () => {
-    mocks.waitDownload
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('Retake interrupted'));
-    const ready = vi
-      .fn()
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('capture')
-      .mockResolvedValueOnce('next');
+  it('counts a shot whose capture failed once when the user moves on', async () => {
+    mocks.waitDownload.mockRejectedValueOnce(new Error('Download interrupted'));
+    const ready = vi.fn().mockResolvedValueOnce('capture').mockResolvedValueOnce('next');
     const result = await runCaptureJob({ ...options(), onManualReady: ready });
     expect(result.completed).toBe(0);
     expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]?.message).toContain('Retake interrupted');
+    expect(result.failures[0]?.message).toContain('Download interrupted');
   });
 });
 

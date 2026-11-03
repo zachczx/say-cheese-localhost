@@ -3,31 +3,15 @@
 
   interface Props {
     shot: Shot;
-    saved: boolean;
     error: string;
     fullPage: boolean;
-    isLastShot: boolean;
-    /** The image saved for this shot, when there is one. */
-    preview: string | undefined;
     /** The capture command's key binding, or empty when unassigned. */
     shortcut: string;
     onCapture: () => void;
-    onNext: () => void;
-    onPreview: () => void;
+    onSkip: () => void;
   }
 
-  let {
-    shot,
-    saved,
-    error,
-    fullPage,
-    isLastShot,
-    preview,
-    shortcut,
-    onCapture,
-    onNext,
-    onPreview,
-  }: Props = $props();
+  let { shot, error, fullPage, shortcut, onCapture, onSkip }: Props = $props();
 </script>
 
 <div class="manual-preparation" aria-live="polite">
@@ -40,13 +24,10 @@
           : 'Arrange the capture window, then capture the current view.')}
     </p>
     <p>
-      {error && saved
-        ? 'An earlier image was saved, but the latest attempt failed.'
-        : saved
-          ? 'Image saved. You can retake it or move on.'
-          : fullPage
-            ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
-            : 'Navigate and scroll freely. Capture keeps your current framing.'}
+      {fullPage
+        ? 'Navigate freely. Capture loads lazy content and returns to this scroll position.'
+        : 'Navigate and scroll freely. Capture keeps your current framing.'}
+      The next shot opens as soon as the image is saved.
     </p>
     {#if error}<p role="alert">{error} Correct the page and retry here.</p>{/if}
     {#if shortcut}
@@ -56,22 +37,9 @@
     {/if}
     <div class="capture-actions">
       <button class="primary-button btn btn-primary" type="button" onclick={onCapture}
-        >{saved ? 'Retake' : 'Capture'}
-        {fullPage ? 'full page' : 'current view'}</button
+        >Capture {fullPage ? 'full page' : 'current view'}</button
       >
-      <button class="quiet-button btn btn-ghost" type="button" onclick={onNext}
-        >{saved ? (isLastShot ? 'Finish' : 'Next shot') : 'Skip shot'}</button
-      >
+      <button class="quiet-button btn btn-ghost" type="button" onclick={onSkip}>Skip shot</button>
     </div>
   </div>
-  {#if saved && preview}
-    <button
-      class="manual-preview"
-      type="button"
-      aria-label={`Open saved image for ${shot.label}`}
-      onclick={onPreview}
-    >
-      <img src={preview} alt="" />
-    </button>
-  {/if}
 </div>

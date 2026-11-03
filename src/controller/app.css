@@ -742,6 +742,21 @@ input[type='url'] {
   transform: translateY(1px);
 }
 
+/* The explicit colors above would otherwise hide the framework's disabled look. */
+.primary-button:disabled,
+.stop-button:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+  background: var(--surface-muted);
+  border-color: var(--line);
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+.primary-button:disabled svg {
+  color: currentColor;
+}
+
 .primary-button svg {
   width: 18px;
   height: 18px;
@@ -813,24 +828,6 @@ kbd {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-}
-
-.manual-preview {
-  flex: 0 0 auto;
-  height: 168px;
-  padding: 0;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-  cursor: zoom-in;
-}
-
-.manual-preview img {
-  display: block;
-  width: auto;
-  height: 100%;
 }
 
 .manual-preparation strong {
@@ -1051,6 +1048,13 @@ progress::-webkit-progress-value {
   margin: 4px 0 0;
   color: var(--ink-muted);
   font-size: 12.5px;
+}
+
+.queue-select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
 /* ==========================================================================
