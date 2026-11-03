@@ -161,6 +161,11 @@ test('the capture command message captures from the capture window', async ({
   // background worker's message the way the command handler does.
   const [worker] = context.serviceWorkers();
   await worker!.evaluate(() => chrome.runtime.sendMessage({ type: 'capture-current-view' }));
+  // The run moves on by itself once the first image is saved; skip the second shot.
+  await expect(controller.locator('.manual-copy strong')).toHaveText('Fixture details', {
+    timeout: 60_000,
+  });
+  await controller.getByRole('button', { name: 'Skip shot' }).click();
   await expect(controller.locator(footer)).toContainText('1 image saved', { timeout: 60_000 });
   const [card] = await savedPixels(controller, cardX, cardY);
   expect(isCardWhite(card!)).toBe(true);
