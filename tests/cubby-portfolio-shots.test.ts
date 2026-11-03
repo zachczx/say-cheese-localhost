@@ -3,43 +3,70 @@ import { PROFILES } from '../src/profiles';
 import { validateProfile } from '../src/profiles/schema';
 import { VIEWPORTS } from '../src/profiles/viewports';
 
-const cubbyPortfolioShots = PROFILES.find((profile) => profile.id === 'cubby')!.shots;
+const cubbyShots = PROFILES.find((profile) => profile.id === 'cubby')!.shots;
 
-const portfolioOrder = [
+// Screenshots the case study refresh uses, in chapter order. These start selected, so a
+// default run covers the site. Every other shot is app coverage and starts cleared.
+const caseStudyShots = [
   'dashboard',
+  'dashboard-recent',
   'tasks',
   'limits',
   'screentimer',
   'enrichment',
   'gym-workout',
-  'gym-exercise',
   'illness',
+  'sleep',
   'coffee',
   'meals',
+  'jobs',
   'expiry',
   'market',
   'finance',
-  'travel',
   'growing-up',
   'journal-recap',
 ];
 
-describe('Cubby portfolio shot curation', () => {
+const appCoverageShots = [
+  'gym-exercise',
+  'moments',
+  'schedule',
+  'timeline',
+  'calendar',
+  'household',
+  'track',
+  'apps',
+];
+
+const shotOrder = [...caseStudyShots, ...appCoverageShots];
+
+describe('Cubby shot curation', () => {
   it('registers Cubby as a selectable capture profile', () => {
     expect(PROFILES.map((profile) => profile.id)).toContain('cubby');
   });
 
-  it('matches the public case study exactly and in editorial order', () => {
-    expect(cubbyPortfolioShots.map((shot) => shot.id)).toEqual(portfolioOrder);
-    expect(cubbyPortfolioShots.map((shot) => shot.filename)).toEqual(
-      portfolioOrder.map((id, index) => `cubby-${String(index + 1).padStart(2, '0')}-${id}.webp`),
+  it('keeps a stable order and numbered file names', () => {
+    expect(cubbyShots.map((shot) => shot.id)).toEqual(shotOrder);
+    expect(cubbyShots.map((shot) => shot.filename)).toEqual(
+      shotOrder.map((id, index) => `cubby-${String(index + 1).padStart(2, '0')}-${id}.webp`),
     );
   });
 
-  it('does not retain screenshots absent from the public case study', () => {
-    expect(cubbyPortfolioShots.map((shot) => shot.id)).not.toEqual(
-      expect.arrayContaining(['market-scan', 'gym', 'coffee-brews', 'sleep', 'moments']),
+  it('selects exactly the case study screenshots by default', () => {
+    expect(cubbyShots.filter((shot) => shot.enabledByDefault).map((shot) => shot.id)).toEqual(
+      caseStudyShots,
     );
+  });
+
+  it('does not bring back retired shots or removed Cubby features', () => {
+    const ids = cubbyShots.map((shot) => shot.id);
+    for (const retired of ['market-scan', 'gym', 'coffee-brews', 'travel']) {
+      expect(ids).not.toContain(retired);
+    }
+  });
+
+  it('uses Workouts routes rather than the redirecting Gym ones', () => {
+    expect(cubbyShots.filter((shot) => shot.path.startsWith('/app/gym'))).toEqual([]);
   });
 
   it('is valid profile data before Cubby activation', () => {
@@ -51,7 +78,7 @@ describe('Cubby portfolio shot curation', () => {
           defaultBaseUrl: 'http://localhost:5173',
           outputDirectory: 'say-cheese-localhost/cubby',
           defaultViewport: 'phone',
-          shots: cubbyPortfolioShots,
+          shots: cubbyShots,
         },
         VIEWPORTS,
       ),

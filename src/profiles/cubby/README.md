@@ -1,6 +1,7 @@
 # Cubby profile
 
-This profile captures the 16 screens used by the public Cubby case study. Use it only against
+This profile covers Cubby's main screens. The 17 that the refreshed case study uses start
+selected, and the rest start cleared. Use it only against
 Cubby's synthetic, manually verified QA environment. Say Cheese Localhost does not start the app
 or seed its database.
 
@@ -27,37 +28,55 @@ customized URL is kept per profile. Confirm the synthetic household in the app b
 capturing. Localhost alone does not prove an application uses safe data, and this profile does
 not run an automated QA preflight.
 
-Presets are starting points. For the gym shots, open the workout or exercise you want to show
-before capturing. The controller displays each shot's preparation hint. Keep manual preparation
-on for these views, because batch mode captures their starting routes.
+Presets are starting points. Several shots need a step first: open a workout, an exercise or
+the active illness episode, or start a saved timer. The controller displays each shot's
+preparation hint. Keep manual preparation on for these views, because batch mode captures
+their starting routes. Batch mode
+scrolls `dashboard-recent` to Home's Recent section by itself.
 
 Review files in Downloads before publishing them, particularly when using a private QA photo
 directory. Do not point this profile at production-backed development.
 
 ## Shot list
 
-The case study consumes these screenshots in this editorial order:
+Shots marked _case study_ start selected and follow the case study's chapter order. The
+others start cleared.
 
-1. `dashboard` — `/app`
-2. `tasks` — `/app/tasks`
-3. `limits` — `/app/limits`
-4. `screentimer` — `/app/screentimer`
-5. `enrichment` — `/app/enrichment`
-6. `gym-workout` — `/app/gym`, then drill into the first workout
-7. `gym-exercise` — `/app/gym/stats/exercises`, then drill into the first exercise
-8. `illness` — `/app/illness`
-9. `coffee` — `/app/coffee`
-10. `meals` — `/app/meals`
-11. `expiry` — `/app/expiry`
-12. `market` — `/app/market`
-13. `finance` — `/app/finance`
-14. `travel` — `/app/travel`
-15. `growing-up` — `/app/growing-up`
-16. `journal-recap` — `/app/journal/recap`
+1. `dashboard` — `/app` — case study
+2. `dashboard-recent` — `/app`, scrolled to the Recent section — case study
+3. `tasks` — `/app/tasks` — case study
+4. `limits` — `/app/limits` — case study
+5. `screentimer` — `/app/screentimer`, with a saved timer running — case study
+6. `enrichment` — `/app/enrichment` — case study
+7. `gym-workout` — `/app/workouts`, then open the latest workout — case study
+8. `illness` — `/app/illness`, then open the active episode — case study
+9. `sleep` — `/app/sleep` — case study
+10. `coffee` — `/app/coffee` — case study
+11. `meals` — `/app/meals` — case study
+12. `jobs` — `/app/jobs` — case study
+13. `expiry` — `/app/expiry` — case study
+14. `market` — `/app/market` — case study
+15. `finance` — `/app/finance` — case study
+16. `growing-up` — `/app/growing-up` — case study
+17. `journal-recap` — `/app/journal/recap` — case study
+18. `gym-exercise` — `/app/workouts/stats/exercises`, then open an exercise
+19. `moments` — `/app/journal/moments`
+20. `schedule` — `/app/schedule`
+21. `timeline` — `/app/timeline`
+22. `calendar` — `/app/calendar`
+23. `household` — `/app/household`
+24. `track` — `/app/track`
+25. `apps` — `/app/all`
 
-Files use the project-prefixed sequence `cubby-01-dashboard.webp` through
-`cubby-16-journal-recap.webp`, so their order and source stay clear outside the output folder.
+Files use the project-prefixed sequence `cubby-01-dashboard.webp` through `cubby-25-apps.webp`,
+so their order and source stay clear outside the output folder. The case study stores them
+without the prefix, for example `dashboard.webp`, so rename them when copying them over.
+The `gym-*` IDs and file names predate Cubby's rename to Workouts. They are kept so saved
+selections still line up. Travel left Cubby in October 2026, so it has no shot.
 `tests/cubby-portfolio-shots.test.ts` fails if the manifest drifts from this list.
+
+The Home evolution archives at `/app/labs/home-evolution/*` are not included. The case study
+shows them at desktop size, and they no longer change.
 
 `manifest.json` in this folder is the hand-editable source of truth. Each build also copies it
 to `dist/profiles/cubby/manifest.json` as standalone JSON.
