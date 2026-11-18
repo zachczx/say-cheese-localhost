@@ -31,14 +31,34 @@ export async function applyEmulation(
     enabled: viewport.touch,
     maxTouchPoints: viewport.touch ? 5 : 1,
   });
-  await session.send('Emulation.setTimezoneOverride', {
-    timezoneId: options.timezoneId ?? DEFAULT_TIMEZONE,
-  });
+  await applyTimezone(session, options.timezoneId ?? DEFAULT_TIMEZONE);
   if (options.colorScheme && options.colorScheme !== 'system') {
     await session.send('Emulation.setEmulatedMedia', {
       features: [{ name: 'prefers-color-scheme', value: options.colorScheme }],
     });
   }
+}
+
+/**
+ * Recent Chrome builds refuse `Emulation.setTimezoneOverride` from extension
+ * debugger clients ("only available to trusted clients"). The override is a
+ * nicety, so a refusal leaves the browser's own time zone in place instead of
+ * failing the capture.
+ */
+async function applyTimezone(session: DebuggerSession, timezoneId: string): Promise<void> {
+  try {
+    await session.send('Emulation.setTimezoneOverride', { timezoneId });
+  } catch (error) {
+    if (!isUntrustedClientError(error)) throw error;
+    console.warn(
+      `Chrome blocked the ${timezoneId} time zone override; pages use the system time zone.`,
+    );
+  }
+}
+
+function isUntrustedClientError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /trusted clients/i.test(message);
 }
 
 export async function clearEmulation(session: DebuggerSession): Promise<void> {
