@@ -113,38 +113,45 @@
       "enabledByDefault": true
     },
     {
+      "id": "stock",
+      "label": "Stock",
+      "path": "/app/stock",
+      "filename": "cubby-14-stock.webp",
+      "enabledByDefault": true
+    },
+    {
       "id": "market",
       "label": "Market",
       "path": "/app/market",
-      "filename": "cubby-14-market.webp",
+      "filename": "cubby-15-market.webp",
       "enabledByDefault": true
     },
     {
       "id": "finance",
       "label": "Finance",
       "path": "/app/finance",
-      "filename": "cubby-15-finance.webp",
+      "filename": "cubby-16-finance.webp",
       "enabledByDefault": true
     },
     {
       "id": "growing-up",
       "label": "Growing Up",
       "path": "/app/growing-up",
-      "filename": "cubby-16-growing-up.webp",
+      "filename": "cubby-17-growing-up.webp",
       "enabledByDefault": true
     },
     {
       "id": "journal-recap",
       "label": "Journal recap",
       "path": "/app/journal/recap",
-      "filename": "cubby-17-journal-recap.webp",
+      "filename": "cubby-18-journal-recap.webp",
       "enabledByDefault": true
     },
     {
       "id": "gym-exercise",
       "label": "Workout exercise",
       "path": "/app/workouts/stats/exercises",
-      "filename": "cubby-18-gym-exercise.webp",
+      "filename": "cubby-19-gym-exercise.webp",
       "enabledByDefault": false,
       "preparation": "Open an exercise and frame its history before capturing."
     },
@@ -152,49 +159,49 @@
       "id": "moments",
       "label": "Moments",
       "path": "/app/journal/moments",
-      "filename": "cubby-19-moments.webp",
+      "filename": "cubby-20-moments.webp",
       "enabledByDefault": false
     },
     {
       "id": "schedule",
       "label": "Schedule",
       "path": "/app/schedule",
-      "filename": "cubby-20-schedule.webp",
+      "filename": "cubby-21-schedule.webp",
       "enabledByDefault": false
     },
     {
       "id": "timeline",
       "label": "Timeline",
       "path": "/app/timeline",
-      "filename": "cubby-21-timeline.webp",
+      "filename": "cubby-22-timeline.webp",
       "enabledByDefault": false
     },
     {
       "id": "calendar",
       "label": "Calendar",
       "path": "/app/calendar",
-      "filename": "cubby-22-calendar.webp",
+      "filename": "cubby-23-calendar.webp",
       "enabledByDefault": false
     },
     {
       "id": "household",
       "label": "Household",
       "path": "/app/household",
-      "filename": "cubby-23-household.webp",
+      "filename": "cubby-24-household.webp",
       "enabledByDefault": false
     },
     {
       "id": "track",
       "label": "Track",
       "path": "/app/track",
-      "filename": "cubby-24-track.webp",
+      "filename": "cubby-25-track.webp",
       "enabledByDefault": false
     },
     {
       "id": "apps",
       "label": "Apps",
       "path": "/app/all",
-      "filename": "cubby-25-apps.webp",
+      "filename": "cubby-26-apps.webp",
       "enabledByDefault": false
     }
   ]

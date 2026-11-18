@@ -21,6 +21,7 @@ const caseStudyShots = [
   'meals',
   'jobs',
   'expiry',
+  'stock',
   'market',
   'finance',
   'growing-up',
