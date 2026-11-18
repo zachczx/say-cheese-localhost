@@ -1,6 +1,6 @@
 # Cubby profile
 
-This profile covers Cubby's main screens. The 17 that the refreshed case study uses start
+This profile covers Cubby's main screens. The 18 that the refreshed case study uses start
 selected, and the rest start cleared. Use it only against
 Cubby's synthetic, manually verified QA environment. Say Cheese Localhost does not start the app
 or seed its database.
@@ -55,20 +55,21 @@ others start cleared.
 11. `meals` — `/app/meals` — case study
 12. `jobs` — `/app/jobs` — case study
 13. `expiry` — `/app/expiry` — case study
-14. `market` — `/app/market` — case study
-15. `finance` — `/app/finance` — case study
-16. `growing-up` — `/app/growing-up` — case study
-17. `journal-recap` — `/app/journal/recap` — case study
-18. `gym-exercise` — `/app/workouts/stats/exercises`, then open an exercise
-19. `moments` — `/app/journal/moments`
-20. `schedule` — `/app/schedule`
-21. `timeline` — `/app/timeline`
-22. `calendar` — `/app/calendar`
-23. `household` — `/app/household`
-24. `track` — `/app/track`
-25. `apps` — `/app/all`
+14. `stock` — `/app/stock` — case study
+15. `market` — `/app/market` — case study
+16. `finance` — `/app/finance` — case study
+17. `growing-up` — `/app/growing-up` — case study
+18. `journal-recap` — `/app/journal/recap` — case study
+19. `gym-exercise` — `/app/workouts/stats/exercises`, then open an exercise
+20. `moments` — `/app/journal/moments`
+21. `schedule` — `/app/schedule`
+22. `timeline` — `/app/timeline`
+23. `calendar` — `/app/calendar`
+24. `household` — `/app/household`
+25. `track` — `/app/track`
+26. `apps` — `/app/all`
 
-Files use the project-prefixed sequence `cubby-01-dashboard.webp` through `cubby-25-apps.webp`,
+Files use the project-prefixed sequence `cubby-01-dashboard.webp` through `cubby-26-apps.webp`,
 so their order and source stay clear outside the output folder. The case study stores them
 without the prefix, for example `dashboard.webp`, so rename them when copying them over.
 The `gym-*` IDs and file names predate Cubby's rename to Workouts. They are kept so saved
