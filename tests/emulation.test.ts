@@ -36,7 +36,9 @@ describe('emulation', () => {
   it('keeps capturing when Chrome refuses the timezone override', async () => {
     const send = vi.fn(async (method: string) => {
       if (method === 'Emulation.setTimezoneOverride') {
-        throw new Error('{"code":-32000,"message":"Timezone override is only available to trusted clients"}');
+        throw new Error(
+          '{"code":-32000,"message":"Timezone override is only available to trusted clients"}',
+        );
       }
     });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
